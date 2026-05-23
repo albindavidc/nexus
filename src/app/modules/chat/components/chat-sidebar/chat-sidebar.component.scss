@@ -1,8 +1,8 @@
 .sidebar {
   width: 320px;
   height: 100vh;
-  background-color: var(--sidebar-bg);
-  border-right: 1px solid var(--border-dark);
+  background-color: var(--sidebar-bg, #111111);
+  border-right: 1px solid var(--border-dark, #2a2a2a);
   display: flex;
   flex-direction: column;
   padding: 1.5rem 1rem;
@@ -24,12 +24,12 @@
     .logo-box {
       width: 28px;
       height: 28px;
-      background: var(--primary-gradient);
+      background: var(--primary-gradient, linear-gradient(135deg, #ff7a00, #ff5000));
       border-radius: 6px;
       display: flex;
       align-items: center;
       justify-content: center;
-      box-shadow: 0 0 10px var(--primary-orange-glow);
+      box-shadow: 0 0 10px rgba(255, 102, 0, 0.4);
 
       .lightning-icon {
         width: 16px;
@@ -46,13 +46,13 @@
     }
   }
 
-  .btn-icon {
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    color: var(--primary-orange-light);
-    width: 36px;
-    height: 36px;
-    border-radius: 8px;
+  .add-btn {
+    background: #1e1e1e;
+    border: none;
+    color: var(--text-gray, #888);
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -60,12 +60,13 @@
     transition: all 0.2s;
 
     &:hover {
-      background: rgba(255, 255, 255, 0.1);
+      background: #2a2a2a;
+      color: white;
     }
 
     svg {
-      width: 18px;
-      height: 18px;
+      width: 16px;
+      height: 16px;
     }
   }
 }
@@ -80,37 +81,37 @@
     flex: 1;
     background: transparent;
     border: none;
-    color: var(--text-gray);
+    color: var(--text-gray, #888);
     font-size: 0.75rem;
     font-weight: 600;
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 0.25rem;
+    gap: 0.4rem;
     cursor: pointer;
-    padding-bottom: 0.5rem;
+    padding-bottom: 0.75rem;
     border-bottom: 2px solid transparent;
     transition: all 0.2s;
 
     .tab-icon {
-      width: 20px;
-      height: 20px;
+      width: 22px;
+      height: 22px;
     }
 
     &.active {
-      color: var(--primary-orange);
-      border-bottom-color: var(--primary-orange);
+      color: var(--primary-orange, #ff6600);
+      border-bottom-color: var(--primary-orange, #ff6600);
     }
 
     &:hover:not(.active) {
-      color: var(--text-gray-light);
+      color: #ccc;
     }
   }
 }
 
 .search-container {
   position: relative;
-  margin-bottom: 2rem;
+  margin-bottom: 1rem;
   padding: 0 0.5rem;
 
   .search-icon {
@@ -120,14 +121,14 @@
     transform: translateY(-50%);
     width: 18px;
     height: 18px;
-    color: var(--text-gray);
+    color: var(--text-gray, #888);
   }
 
   .search-input {
     width: 100%;
-    background-color: #141414;
-    border: 1px solid var(--border-focus);
-    border-radius: 20px;
+    background-color: #1a1a1a;
+    border: 1px solid transparent;
+    border-radius: 8px;
     padding: 0.75rem 1rem 0.75rem 2.5rem;
     color: white;
     font-size: 0.85rem;
@@ -135,11 +136,41 @@
     transition: border-color 0.2s;
 
     &:focus {
-      border-color: var(--primary-orange);
+      border-color: #333;
     }
 
     &::placeholder {
-      color: var(--text-gray);
+      color: var(--text-gray, #888);
+    }
+  }
+}
+
+.filter-toggle {
+  display: flex;
+  background: #1a1a1a;
+  border-radius: 8px;
+  margin: 0 0.5rem 1.5rem;
+  padding: 2px;
+
+  .filter-btn {
+    flex: 1;
+    background: transparent;
+    border: none;
+    color: var(--text-gray, #888);
+    padding: 0.5rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+
+    &.active {
+      background: var(--primary-orange, #ff6600);
+      color: white;
+    }
+
+    &:hover:not(.active) {
+      color: #ccc;
     }
   }
 }
@@ -147,7 +178,7 @@
 .section-title {
   font-size: 0.7rem;
   font-weight: 700;
-  color: var(--text-gray);
+  color: var(--text-gray, #888);
   letter-spacing: 1px;
   margin-bottom: 0.75rem;
   padding: 0 0.5rem;
@@ -164,7 +195,7 @@
     width: 4px;
   }
   &::-webkit-scrollbar-thumb {
-    background: var(--border-focus);
+    background: #333;
     border-radius: 4px;
   }
 }
@@ -179,11 +210,12 @@
   transition: background 0.2s;
 
   &:hover {
-    background: var(--surface-hover);
+    background: #1e1e1e;
   }
 
   &.active {
-    background: #1c1c1e;
+    background: #1e1e1e;
+    border: 1px solid #2a2a2a;
   }
 
   .avatar-wrapper {
@@ -197,6 +229,7 @@
       align-items: center;
       justify-content: center;
       font-size: 1.25rem;
+      border: 1px solid rgba(255, 255, 255, 0.1);
     }
 
     .status-indicator {
@@ -206,10 +239,10 @@
       width: 12px;
       height: 12px;
       border-radius: 50%;
-      border: 2px solid var(--sidebar-bg);
+      border: 2px solid var(--sidebar-bg, #111111);
       
       &.online {
-        background-color: var(--status-online);
+        background-color: var(--status-online, #4caf50);
       }
     }
   }
@@ -231,7 +264,7 @@
       }
 
       .chat-time {
-        color: var(--text-gray);
+        color: var(--text-gray, #888);
         font-size: 0.75rem;
       }
     }
@@ -242,7 +275,7 @@
       align-items: center;
 
       .message-preview {
-        color: var(--text-gray-light);
+        color: var(--text-gray-light, #aaa);
         font-size: 0.8rem;
         white-space: nowrap;
         overflow: hidden;
@@ -252,7 +285,7 @@
       }
 
       .unread-badge {
-        background: var(--primary-orange);
+        background: var(--primary-orange, #ff6600);
         color: white;
         font-size: 0.7rem;
         font-weight: 700;
@@ -261,45 +294,6 @@
         min-width: 18px;
         text-align: center;
       }
-    }
-  }
-}
-
-.stats-card {
-  margin-top: 1rem;
-  background: #141414;
-  border: 1px solid var(--border-dark);
-  border-radius: 16px;
-  padding: 1rem;
-  display: flex;
-  justify-content: space-between;
-
-  .stat-col {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 0.25rem;
-
-    .stat-icon {
-      font-size: 1rem;
-      &.fire { filter: hue-rotate(0deg); }
-      &.drop { filter: hue-rotate(200deg); }
-      &.run { filter: hue-rotate(45deg); }
-    }
-
-    .stat-val {
-      font-size: 0.85rem;
-      font-weight: 700;
-      color: var(--primary-orange-light);
-
-      &.blue {
-        color: #3b82f6;
-      }
-    }
-
-    .stat-lbl {
-      font-size: 0.7rem;
-      color: var(--text-gray);
     }
   }
 }
