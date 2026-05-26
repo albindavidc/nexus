@@ -9,11 +9,13 @@
       </div>
       <span class="logo-text">NEXUS</span>
     </div>
-    <button class="btn-icon add-btn">
-      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
-      </svg>
-    </button>
+    @if(activeTab === 'GROUPS') {
+      <button class="btn-icon add-btn" (click)="toggleCreateGroup()">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+        </svg>
+      </button>
+    }
   </header>
 
   <!-- Navigation Tabs -->
@@ -23,11 +25,18 @@
         class="tab-btn" 
         [class.active]="activeTab === tab"
         (click)="setTab(tab)">
-        @if(tab === 'HOME') {
-          <svg class="tab-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
+        @if(tab === 'CHAT') {
+          <svg class="tab-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+          </svg>
         }
         @if(tab === 'GROUPS') {
           <svg class="tab-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
+        }
+        @if(tab === 'AI COACH') {
+          <svg class="tab-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 3v1.5M15.75 3v1.5m-7.5 13.5h7.5M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0ZM9.75 9.75h.008v.008h-.008V9.75Zm4.5 0h.008v.008h-.008V9.75Z" />
+          </svg>
         }
         @if(tab === 'PROFILE') {
           <svg class="tab-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
@@ -42,53 +51,150 @@
     <svg class="search-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
     </svg>
-    <input type="text" class="search-input" placeholder="Search groups...">
+    <input type="text" class="search-input" [(ngModel)]="searchQuery" (ngModelChange)="onSearchChange()" placeholder="Search...">
   </div>
-
-  <!-- Filters -->
-  <div class="filter-toggle">
-    @for (filter of filters; track filter) {
-      <button 
-        class="filter-btn" 
-        [class.active]="activeFilter === filter"
-        (click)="setFilter(filter)">
-        {{ filter }}
-      </button>
-    }
-  </div>
-
-  <div class="section-title">MY GROUPS</div>
 
   <!-- Groups List -->
   <div class="chat-list">
-    @for (group of groups; track group.id || group._id) {
-      <div 
-        class="chat-item" 
-        [class.active]="activeChatId === (group.id || group._id)"
-        (click)="onSelectChat(group)">
-        
-        <div class="avatar-wrapper">
-          <div class="avatar" [style.backgroundColor]="group.avatarColor || '#333'">
-            <span class="avatar-emoji">{{ group.icon || '💬' }}</span>
+    @if(isSearching) {
+      @for (result of searchResults; track result.id || result._id) {
+        <div class="chat-item" (click)="onSelectChat(result)">
+          <div class="avatar-wrapper">
+            <div class="avatar" [style.backgroundColor]="result.avatarColor || '#333'">
+              <span class="avatar-emoji">{{ result.icon || '👥' }}</span>
+            </div>
           </div>
-          @if(group.isOnline || group.isActive) {
-            <span class="status-indicator online"></span>
+          <div class="chat-info">
+            <div class="chat-header">
+              <span class="chat-name">{{ result.name }}</span>
+            </div>
+            <div class="chat-snippet">
+              <span class="message-preview">{{ result.description }}</span>
+            </div>
+          </div>
+          @if(result.type === 'group' && !isJoined(result)) {
+             <button class="join-btn" (click)="joinGroup(result, $event)">Join</button>
           }
         </div>
+      }
+    } @else {
+      @if(activeTab === 'CHAT') {
+        @for (chat of conversations; track chat.id || chat._id) {
+          <div 
+            class="chat-item" 
+            [class.active]="activeDirectChatId === (chat.id || chat._id)"
+            (click)="onSelectChat(chat)">
+            
+            <div class="avatar-wrapper">
+              <div class="avatar" [style.backgroundColor]="chat.avatarColor || '#333'">
+                <span class="avatar-emoji">{{ chat.icon || '👤' }}</span>
+              </div>
+              @if(chat.isOnline || chat.isActive) {
+                <span class="status-indicator online"></span>
+              }
+            </div>
 
-        <div class="chat-info">
-          <div class="chat-header">
-            <span class="chat-name">{{ group.name }}</span>
-            <span class="chat-time">{{ group.time || '1m' }}</span>
+            <div class="chat-info">
+              <div class="chat-header">
+                <span class="chat-name">{{ chat.name }}</span>
+                <span class="chat-time">{{ chat.time || 'Now' }}</span>
+              </div>
+              <div class="chat-snippet">
+                <span class="message-preview">{{ getLastMessageText(chat) }}</span>
+                @if(chat.unreadCount > 0) {
+                  <span class="unread-badge">{{ chat.unreadCount }}</span>
+                }
+              </div>
+            </div>
           </div>
-          <div class="chat-snippet">
-            <span class="message-preview">{{ group.lastMessage || group.description }}</span>
-            @if(group.unreadCount > 0) {
-              <span class="unread-badge">{{ group.unreadCount }}</span>
+        }
+      } @else if(activeTab === 'GROUPS') {
+        @for (group of groups; track group.id || group._id) {
+          <div 
+            class="chat-item" 
+            [class.active]="activeGroupChatId === (group.id || group._id)"
+            (click)="onSelectChat(group)">
+            
+            <div class="avatar-wrapper">
+              <div class="avatar" [style.backgroundColor]="group.avatarColor || '#333'">
+                <span class="avatar-emoji">{{ group.icon || '👥' }}</span>
+              </div>
+              @if(group.isOnline || group.isActive) {
+                <span class="status-indicator online"></span>
+              }
+            </div>
+
+            <div class="chat-info">
+              <div class="chat-header">
+                <span class="chat-name">{{ group.name }}</span>
+                <span class="chat-time">{{ group.time || 'Now' }}</span>
+              </div>
+              <div class="chat-snippet">
+                <span class="message-preview">{{ getLastMessageText(group) }}</span>
+                @if(group.unreadCount > 0) {
+                  <span class="unread-badge">{{ group.unreadCount }}</span>
+                }
+              </div>
+            </div>
+          </div>
+        }
+      } @else if(activeTab === 'AI COACH') {
+        <div class="chat-item active" style="border-left: 3px solid #ff6600;">
+          <div class="avatar-wrapper">
+            <div class="avatar" style="background-color: #ff5722;">
+              <span class="avatar-emoji">🤖</span>
+            </div>
+            <span class="status-indicator online"></span>
+          </div>
+          <div class="chat-info">
+            <div class="chat-header">
+              <span class="chat-name">Nexus Coach</span>
+              <span class="chat-time">Online</span>
+            </div>
+            <div class="chat-snippet">
+              <span class="message-preview">AI Trainer & Calisthenics expert</span>
+            </div>
+          </div>
+        </div>
+      }
+    }
+  </div>
+
+  @if(isCreatingGroup) {
+    <div class="create-group-modal">
+      <div class="modal-content">
+        <h3>Create Group</h3>
+        <div class="form-group mb-2">
+          <label class="form-label">Group Name</label>
+          <input type="text" [(ngModel)]="newGroup.name" placeholder="E.g., Morning Runners" class="form-control">
+        </div>
+        <div class="form-group mb-2">
+          <label class="form-label">Description</label>
+          <input type="text" [(ngModel)]="newGroup.description" placeholder="What's this group about?" class="form-control">
+        </div>
+        
+        <div class="theme-selection mb-2">
+          <label class="form-label">Select Theme:</label>
+          <div class="theme-options">
+            @for (theme of availableThemes; track theme.value) {
+              <button 
+                class="theme-btn" 
+                [style.backgroundColor]="theme.value"
+                [class.selected]="newGroup.theme === theme.value"
+                (click)="newGroup.theme = theme.value"
+                title="{{ theme.name }}">
+              </button>
             }
           </div>
         </div>
+
+        <div class="modal-actions">
+          <button class="btn-cancel" (click)="toggleCreateGroup()">Cancel</button>
+          <button class="btn-primary" (click)="createGroupSubmit()">Create</button>
+        </div>
       </div>
-    }
-  </div>
+    </div>
+  }
+
+
 </aside>

@@ -9,49 +9,97 @@
         <div class="chat-title-info">
           <h2>{{ activeChat.name }}</h2>
           <div class="chat-stats">
-            <span class="members-count">👥 {{ activeChat.members?.length || '1,247' }} members</span>
-            <span class="active-count">· <span class="highlight">{{ activeChat.activeCount || '324' }} active today</span></span>
+            @if(activeChat.type === 'bot') {
+              <span class="active-count"><span class="highlight">AI Personal Trainer · Online</span></span>
+            } @else {
+              <span class="members-count">👥 {{ activeChat.members?.length || 1 }} {{ (activeChat.members?.length === 1) ? 'member' : 'members' }}</span>
+              <span class="active-count">· <span class="highlight">{{ getOnlineCount() }} online</span></span>
+            }
           </div>
         </div>
       </div>
       
       <div class="header-actions">
-        <button class="btn-joined">
-          <svg class="crown-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3-.895 3-2-1.343-2-3-2zM4 12c0 2.21 3.582 4 8 4s8-1.79 8-4M4 12c0-2.21 3.582-4 8-4s8 1.79 8 4M4 12v4c0 2.21 3.582 4 8 4s8-1.79 8-4v-4" />
-          </svg>
-          Joined
-        </button>
-        <button class="btn-icon">
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-          </svg>
-        </button>
-        <button class="btn-icon">
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
+        <button 
+          class="btn-icon btn-danger" 
+          (click)="deleteChat()" 
+          title="Delete Chat"
+          style="background: transparent; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: 50%;"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 20px; height: 20px;">
+            <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
           </svg>
         </button>
+
+        @if(activeChat.type !== 'bot') {
+          <button class="btn-joined">
+            🎮 Joined
+          </button>
+
+          <!-- Kebab wrapper -->
+          <div class="kebab-wrapper" style="position: relative;">
+            <button
+              class="btn-kebab"
+              (click)="menuOpen = !menuOpen"
+              aria-label="Group options"
+            >
+              ⋮
+            </button>
+
+            @if(menuOpen) {
+              <div class="kebab-dropdown">
+                <!-- Admin-only options -->
+                @if(isGroupAdminOrOwner()) {
+                  <button
+                    class="kebab-item"
+                    (click)="menuOpen = false; openGroupSettings()"
+                  >
+                    ✏️ Edit
+                  </button>
+
+                  <div class="kebab-divider"></div>
+
+                  <button
+                    class="kebab-item kebab-item--danger"
+                    (click)="menuOpen = false; deleteGroup()"
+                  >
+                    🗑️ Delete Group
+                  </button>
+
+                  <div class="kebab-divider"></div>
+                }
+
+                <!-- Available to all members -->
+                <button
+                  class="kebab-item kebab-item--leave"
+                  (click)="menuOpen = false; leaveGroup()"
+                >
+                  🚪 Leave Group
+                </button>
+              </div>
+            }
+          </div>
+        }
       </div>
     </header>
 
     <!-- Sub Header -->
-    <div class="chat-subheader">
-      <span class="hash">#</span>
-      <span class="description">{{ activeChat.description || 'Early birds crushing their fitness goals before sunrise' }}</span>
-    </div>
+    @if(activeChat.type !== 'bot') {
+      <div class="chat-subheader">
+        <span class="hash">#</span>
+        <span class="description">{{ activeChat.description || 'Early birds crushing their fitness goals before sunrise' }}</span>
+      </div>
+    }
 
     <!-- Messages Area -->
     <div class="messages-container" #scrollMe>
       @for (msg of messages; track msg.id) {
-        
         @if (msg.type === 'system') {
           <div class="system-message">
             <span class="system-bubble">{{ msg.text }}</span>
           </div>
         } @else {
           <div class="message-wrapper" [class.is-me]="msg.isMe">
-            
             @if (!msg.isMe) {
               <div class="message-avatar">
                 <div class="avatar-icon" [style.backgroundColor]="msg.avatarColor">{{ msg.avatar || msg.sender?.charAt(0) }}</div>
@@ -59,13 +107,46 @@
             }
 
             <div class="message-content">
-              @if (!msg.isMe) {
+              @if (!msg.isMe && activeChat.type !== 'bot') {
                 <div class="message-sender">{{ msg.sender }}</div>
               }
               
-              <div class="message-bubble">
-                <p>{{ msg.text }}</p>
+              <div class="message-bubble" [class.bot-bubble]="!msg.isMe && activeChat.type === 'bot'">
+                @if (!msg.isMe && activeChat.type === 'bot') {
+                  <div class="markdown-content" [innerHTML]="msg.text | markdown"></div>
+                } @else {
+                  <p>{{ msg.text }}</p>
+                }
                 
+                @if (msg.hasPerformanceCard) {
+                  <div class="performance-card">
+                    <div class="card-title">Weekly Performance</div>
+                    <div class="stats-row">
+                      <div class="stat">
+                        <div class="stat-icon-text">💪 4</div>
+                        <div class="stat-label">Workouts</div>
+                      </div>
+                      <div class="stat">
+                        <div class="stat-icon-text">⏱️ 3.2</div>
+                        <div class="stat-label">Hours</div>
+                      </div>
+                      <div class="stat">
+                        <div class="stat-icon-text">🔥 1.8k</div>
+                        <div class="stat-label">Calories</div>
+                      </div>
+                    </div>
+                    <div class="progress-section">
+                      <div class="progress-labels">
+                        <span class="progress-title">Weekly Goal</span>
+                        <span class="progress-value">80%</span>
+                      </div>
+                      <div class="progress-bar-container">
+                        <div class="progress-bar-fill" style="width: 80%;"></div>
+                      </div>
+                    </div>
+                  </div>
+                }
+
                 @if (msg.isMe) {
                   <div class="message-status">
                     <span class="avatar-icon small">🔥</span>
@@ -74,34 +155,109 @@
               </div>
               <div class="message-time">{{ msg.time }}</div>
             </div>
-
           </div>
         }
       }
+
+      @if(isTyping) {
+        <div class="message-wrapper">
+          <div class="message-avatar">
+            <div class="avatar-icon" [style.backgroundColor]="activeChat.avatarColor">{{ activeChat.icon }}</div>
+          </div>
+          <div class="message-content">
+            <div class="message-bubble bot-bubble typing-bubble">
+              <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+            </div>
+          </div>
+        </div>
+      }
     </div>
 
-    <!-- Input Area -->
-    <div class="input-area">
-      <div class="input-container">
-        <button class="btn-attach">
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
-          </svg>
-        </button>
-        <input 
-          type="text" 
-          [(ngModel)]="newMessage" 
-          (keyup.enter)="sendMessage()"
-          placeholder="Message {{ activeChat.name }}..." 
-          class="message-input" />
-        <button class="btn-send" (click)="sendMessage()" [class.active]="newMessage.trim().length > 0">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M3.478 2.404a.75.75 0 00-.926.941l2.432 7.905H13.5a.75.75 0 010 1.5H4.984l-2.432 7.905a.75.75 0 00.926.94 60.519 60.519 0 0018.445-8.986.75.75 0 000-1.218A60.517 60.517 0 003.478 2.404z" />
-          </svg>
-        </button>
+    <!-- Quick Replies -->
+    @if(activeChat.type === 'bot' && !isTyping) {
+      <div class="quick-replies">
+        @for(reply of quickReplies; track reply) {
+          <button class="btn-quick-reply" (click)="sendQuickReply(reply)">{{ reply }}</button>
+        }
       </div>
-      <button class="btn-help">?</button>
+    }
+
+    <!-- Input Area -->
+    <div class="input-area-wrapper">
+      <div class="input-area">
+        <div class="input-container">
+          <input 
+            type="text" 
+            [(ngModel)]="newMessage" 
+            (keyup.enter)="sendMessage()"
+            placeholder="Message {{ activeChat.name }}..." 
+            class="message-input" />
+          <button class="btn-send" (click)="sendMessage()" [class.active]="newMessage.trim().length > 0">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M3.478 2.404a.75.75 0 00-.926.941l2.432 7.905H13.5a.75.75 0 010 1.5H4.984l-2.432 7.905a.75.75 0 00.926.94 60.519 60.519 0 0018.445-8.986.75.75 0 000-1.218A60.517 60.517 0 003.478 2.404z" />
+            </svg>
+          </button>
+        </div>
+      </div>
+      @if(activeChat.type === 'bot') {
+        <div class="footer-note">AI responses are personalized to your fitness profile</div>
+      }
     </div>
+
+    @if(isSettingsOpen) {
+      <div class="create-group-modal">
+        <div class="modal-content">
+          <h3>Group Settings</h3>
+          
+          @if(isGroupAdminOrOwner()) {
+            <div class="form-group mb-2">
+              <label class="form-label">Group Name</label>
+              <input type="text" [(ngModel)]="editGroupData.name" placeholder="Group Name" class="form-control">
+            </div>
+            <div class="form-group mb-2">
+              <label class="form-label">Description</label>
+              <input type="text" [(ngModel)]="editGroupData.description" placeholder="Description" class="form-control">
+            </div>
+            
+            <div class="theme-selection mb-2">
+              <label class="form-label">Select Theme Color:</label>
+              <div class="theme-options">
+                @for (theme of availableThemes; track theme.value) {
+                  <button 
+                    class="theme-btn" 
+                    [style.backgroundColor]="theme.value"
+                    [class.selected]="editGroupData.theme === theme.value"
+                    (click)="editGroupData.theme = theme.value"
+                    title="{{ theme.name }}">
+                  </button>
+                }
+              </div>
+            </div>
+          } @else {
+            <p class="text-secondary" style="margin-bottom: var(--space-4); color: var(--text-muted);">You are a member of this group. Only administrators can edit settings.</p>
+            <div class="form-group mb-2">
+              <label class="form-label">Group Name</label>
+              <input type="text" [value]="activeChat.name" disabled class="form-control disabled">
+            </div>
+            <div class="form-group mb-2">
+              <label class="form-label">Description</label>
+              <input type="text" [value]="activeChat.description" disabled class="form-control disabled">
+            </div>
+          }
+
+          <div class="modal-actions-settings">
+            @if(isGroupAdminOrOwner()) {
+              <button class="btn-delete" (click)="deleteGroup()">Delete Group</button>
+            }
+            <div style="flex: 1;"></div>
+            <button class="btn-cancel" (click)="closeGroupSettings()">Cancel</button>
+            @if(isGroupAdminOrOwner()) {
+              <button class="btn-primary" (click)="updateGroupSubmit()">Save Changes</button>
+            }
+          </div>
+        </div>
+      </div>
+    }
   </main>
 } @else {
   <div class="empty-state">
@@ -111,6 +267,6 @@
       </svg>
     </div>
     <h2>Welcome to Nexus Chat</h2>
-    <p>Select a group from the sidebar to start messaging.</p>
+    <p>Select a group or contact from the sidebar to start messaging.</p>
   </div>
 }

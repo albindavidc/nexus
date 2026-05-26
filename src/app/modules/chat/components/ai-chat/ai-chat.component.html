@@ -1,0 +1,135 @@
+<div class="ai-chat-wrapper">
+  <!-- AI Chat Header -->
+  <header class="ai-chat-header">
+    <div class="header-left">
+      <div class="avatar-container">
+        <span class="avatar-emoji">🤖</span>
+        <span class="status-indicator online"></span>
+      </div>
+      <div class="ai-info">
+        <h3>Nexus Coach</h3>
+        <span class="status-text">AI Personal Trainer · Online</span>
+      </div>
+    </div>
+    
+    <div class="header-right">
+      <!-- Option / Kebab -->
+      <div class="kebab-wrapper" style="position: relative;">
+        <button class="circle-btn" (click)="menuOpen = !menuOpen" title="Options">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5ZM12 12.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5ZM12 18.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5Z" />
+          </svg>
+        </button>
+
+        <div class="kebab-dropdown" *ngIf="menuOpen">
+          <button class="kebab-item kebab-item--danger" (click)="menuOpen = false; deleteChat()">
+            🗑️ Clear Chat History
+          </button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Messages Content Area -->
+  <main class="messages-feed" #scrollMe>
+    <div class="date-separator">
+      <span class="date-pill">Today</span>
+    </div>
+
+    @for (msg of messages; track msg.id) {
+      <div class="message-item" [class.incoming]="!msg.isMe" [class.outgoing]="msg.isMe">
+        @if (!msg.isMe) {
+          <div class="avatar" [style.backgroundColor]="msg.avatarColor">
+            {{ msg.avatar }}
+          </div>
+        }
+        <div class="message-wrapper">
+          <div class="message-bubble" [class.stats-bubble]="msg.hasPerformanceCard" [innerHTML]="msg.text | markdown"></div>
+          
+          <!-- Performance Stat Widget inside Left bubble -->
+          @if(msg.hasPerformanceCard) {
+            <div class="performance-card">
+              <div class="perf-header">
+                <span class="perf-title">Weekly Performance</span>
+                <span class="perf-badge">LEVEL 4</span>
+              </div>
+              <div class="perf-grid">
+                <div class="perf-item">
+                  <span class="perf-val">💪 4</span>
+                  <span class="perf-label">Workouts</span>
+                </div>
+                <div class="perf-item">
+                  <span class="perf-val">⏱️ 3.2</span>
+                  <span class="perf-label">Hours</span>
+                </div>
+                <div class="perf-item">
+                  <span class="perf-val">🔥 1.8k</span>
+                  <span class="perf-label">Calories</span>
+                </div>
+              </div>
+              <div class="perf-progress-container">
+                <div class="progress-meta">
+                  <span>Weekly Goal</span>
+                  <span class="pct">80%</span>
+                </div>
+                <div class="progress-bar-track">
+                  <div class="progress-bar-fill" style="width: 80%;"></div>
+                </div>
+              </div>
+            </div>
+          }
+          
+          <span class="message-timestamp">{{ msg.time }}</span>
+        </div>
+      </div>
+    }
+
+    <!-- Typing Indicator -->
+    @if(isTyping) {
+      <div class="message-item incoming">
+        <div class="avatar" style="background-color: #ff5722;">🤖</div>
+        <div class="message-wrapper">
+          <div class="message-bubble typing-bubble">
+            <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+          </div>
+        </div>
+      </div>
+    }
+  </main>
+
+  <!-- Suggestion Chips / Quick Replies -->
+  @if(!isTyping) {
+    <div class="quick-replies">
+      @for(reply of quickReplies; track reply) {
+        <button class="btn-quick-reply" (click)="sendQuickReply(reply)">{{ reply }}</button>
+      }
+    </div>
+  }
+
+  <!-- Input Footer Area -->
+  <footer class="chat-footer">
+    <div class="input-bar-container">
+      <input 
+        type="text" 
+        [(ngModel)]="newMessage" 
+        (keyup.enter)="sendMessage()"
+        placeholder="Message Nexus Coach..." 
+        class="footer-input"
+        style="padding-left: 16px;" />
+
+      <div class="input-bar-right" style="padding-right: 8px;">
+        <button class="send-btn-glowing" (click)="sendMessage()" *ngIf="newMessage.trim().length > 0" title="Send message">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M3.478 2.404a.75.75 0 00-.926.941l2.432 7.905H13.5a.75.75 0 010 1.5H4.984l-2.432 7.905a.75.75 0 00.926.94 60.519 60.519 0 0018.445-8.986.75.75 0 000-1.218A60.517 60.517 0 003.478 2.404z" />
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Bottom note & help button -->
+    <div class="footer-bottom">
+      <div class="encryption-note">AI responses are personalized to your profile</div>
+      <button class="circle-help-btn" title="Help">?</button>
+    </div>
+  </footer>
+</div>

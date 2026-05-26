@@ -44,8 +44,30 @@ export class GroupService {
   }
 
   joinGroup(groupId: string): Observable<any> {
-    // Assuming a join endpoint or add members to self
-    return this.http.post<any>(`${this.apiUrl}/${groupId}/members`, { userIds: [] }); 
-    // Wait, join usually involves another endpoint. We will mock the join behavior for now or use appropriate.
+    return this.http.post<any>(`${this.apiUrl}/${groupId}/join`, {}); 
+  }
+
+  searchGroups(query: string): Observable<any> {
+    return this.http.get<any>(`${this.apiUrl}/search?q=${query}`);
+  }
+
+  updateGroup(groupId: string, data: any): Observable<any> {
+    return this.http.patch<any>(`${this.apiUrl}/${groupId}`, data);
+  }
+
+  deleteGroup(groupId: string): Observable<any> {
+    return this.http.delete<any>(`${this.apiUrl}/${groupId}`);
+  }
+
+  leaveGroup(groupId: string): Observable<any> {
+    return this.http.delete<any>(`${this.apiUrl}/${groupId}/leave`);
+  }
+
+  getGroupMessages(groupId: string): Observable<any> {
+    return this.http.get<any>(`${this.apiUrl}/${groupId}/messages`);
+  }
+
+  sendGroupMessage(groupId: string, text: string): Observable<any> {
+    return this.http.post<any>(`${this.apiUrl}/${groupId}/messages`, { content: text });
   }
 }

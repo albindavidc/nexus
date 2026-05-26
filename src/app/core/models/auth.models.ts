@@ -26,7 +26,9 @@ export interface LoginRequest {
 export interface AuthResponse {
   success: boolean;
   message: string;
-  user: User;
+  data: {
+    user: User;
+  };
 }
 
 export interface AuthState {
