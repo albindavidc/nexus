@@ -8,7 +8,10 @@ import { environment } from '../../../environments/environment';
 })
 export class SocketService {
   private socket: Socket | null = null;
-  private socketUrl = environment.apiUrl.replace('/api/v1', '');
+  private socketUrl = (() => {
+    const url = new URL(environment.apiUrl);
+    return url.origin; // e.g. 'http://localhost:3000' or 'https://api.nexus.albindavidc.com'
+  })();
 
   // Pending rooms to join once socket is confirmed connected
   private pendingJoins: string[] = [];
