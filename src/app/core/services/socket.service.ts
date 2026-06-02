@@ -92,7 +92,7 @@ export class SocketService {
       const doEmit = () => {
         this.socket?.emit(eventName, data || {}, (response: any) => {
           if (response?.success) {
-            observer.next(response.data);
+            observer.next(response);
             observer.complete();
           } else {
             observer.error(new Error(response?.error || 'Socket error'));
