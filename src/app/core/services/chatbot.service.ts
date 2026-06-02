@@ -1,7 +1,6 @@
 import { Injectable, inject } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
-import { environment } from '../../../environments/environment';
+import { SocketService } from './socket.service';
 
 export interface ChatBotMessage {
   role: 'user' | 'assistant';
@@ -9,6 +8,7 @@ export interface ChatBotMessage {
 }
 
 export interface ChatBotRequest {
+  conversationId: string;
   message: string;
   history?: ChatBotMessage[];
 }
@@ -17,29 +17,57 @@ export interface ChatBotRequest {
   providedIn: 'root'
 })
 export class ChatbotService {
-  private http = inject(HttpClient);
-  private apiUrl = `${environment.apiUrl}/chatbot`;
+  private socketService = inject(SocketService);
 
   chat(data: ChatBotRequest): Observable<any> {
-    return this.http.post<any>(`${this.apiUrl}/chat`, data);
+    return this.socketService.emitWithAck('bot_chat_direct', data);
   }
 
   stream(data: ChatBotRequest): Observable<any> {
-    return this.http.post<any>(`${this.apiUrl}/stream`, data, {
-      responseType: 'text' as 'json',
-      observe: 'events'
+    return new Observable<string>((observer) => {
+      this.socketService.emit('bot_message', data);
+
+      const chunkSub = this.socketService.onEvent<any>('bot_chunk').subscribe(res => {
+        if (res.conversationId === data.conversationId) {
+          observer.next(res.chunk);
+        }
+      });
+      
+      const doneSub = this.socketService.onEvent<any>('bot_done').subscribe(res => {
+        if (res.conversationId === data.conversationId) {
+           observer.complete();
+           chunkSub.unsubscribe();
+           doneSub.unsubscribe();
+           errorSub.unsubscribe();
+        }
+      });
+
+      const errorSub = this.socketService.onEvent<any>('bot_error').subscribe(res => {
+        if (res.conversationId === data.conversationId || !res.conversationId) {
+           observer.error(new Error(res.message));
+           chunkSub.unsubscribe();
+           doneSub.unsubscribe();
+           errorSub.unsubscribe();
+        }
+      });
+
+      return () => {
+        chunkSub.unsubscribe();
+        doneSub.unsubscribe();
+        errorSub.unsubscribe();
+      };
     });
   }
 
   bulkChat(data: any): Observable<any> {
-    return this.http.post<any>(`${this.apiUrl}/bulk`, data);
+    return this.socketService.emitWithAck('bot_bulk_message', data);
   }
 
   getHistory(): Observable<any> {
-    return this.http.get<any>(`${this.apiUrl}/history`);
+    return this.socketService.emitWithAck('get_bot_history');
   }
 
   clearHistory(): Observable<any> {
-    return this.http.delete<any>(`${this.apiUrl}/history`);
+    return this.socketService.emitWithAck('clear_bot_history');
   }
 }

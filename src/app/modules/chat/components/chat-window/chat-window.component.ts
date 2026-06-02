@@ -272,7 +272,7 @@ export class ChatWindowComponent implements OnChanges, OnDestroy {
 
     if (this.activeChat.type === 'bot') {
       this.isTyping = true;
-      this.chatbotService.chat({ message: userText }).subscribe({
+      this.chatbotService.chat({ conversationId: this.activeChat.id, message: userText }).subscribe({
         next: (res) => {
           this.isTyping = false;
           const replyText =

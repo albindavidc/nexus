@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { io, Socket } from 'socket.io-client';
-import { Observable, Subject } from 'rxjs';
+import { Observable } from 'rxjs';
 import { environment } from '../../../environments/environment';
 
 @Injectable({
@@ -10,29 +10,22 @@ export class SocketService {
   private socket: Socket | null = null;
   private socketUrl = (() => {
     const url = new URL(environment.apiUrl);
-    return url.origin; // e.g. 'http://localhost:3000' or 'https://api.nexus.albindavidc.com'
+    return url.origin;
   })();
 
-  // Pending rooms to join once socket is confirmed connected
   private pendingJoins: string[] = [];
 
   connect(): void {
-    // Already has an active connection — do nothing
-    if (this.socket?.connected) return;
-
-    // Already creating a socket (may be in the middle of handshake) — do nothing
-    if (this.socket) return;
+    if (this.socket?.connected || this.socket) return;
 
     this.socket = io(this.socketUrl, {
       withCredentials: true,
-      transports: ['websocket', 'polling'],
       autoConnect: true
     });
 
     this.socket.on('connect', () => {
       console.log('⚡ Socket connected:', this.socket?.id);
 
-      // Drain any rooms that were requested before the connection was ready
       this.pendingJoins.forEach((id) => {
         this.socket?.emit('join_conversation', { conversationId: id });
         console.log(`⚡ (buffered) Joined room: ${id}`);
@@ -54,7 +47,6 @@ export class SocketService {
     }
   }
 
-  // ── Room management ───────────────────────────────────────────
   joinConversation(conversationId: string): void {
     this.ensureConnected();
 
@@ -62,7 +54,6 @@ export class SocketService {
       this.socket.emit('join_conversation', { conversationId });
       console.log(`⚡ Joined room: ${conversationId}`);
     } else {
-      // Buffer: emit once the socket fires its 'connect' event
       if (!this.pendingJoins.includes(conversationId)) {
         this.pendingJoins.push(conversationId);
         console.log(`⚡ Buffered room join: ${conversationId}`);
@@ -71,42 +62,56 @@ export class SocketService {
   }
 
   leaveConversation(conversationId: string): void {
-    // Remove from pending buffer if it was never sent
     this.pendingJoins = this.pendingJoins.filter((id) => id !== conversationId);
-
     if (this.socket) {
       this.socket.emit('leave_conversation', { conversationId });
       console.log(`⚡ Left room: ${conversationId}`);
     }
   }
 
-  // ── Reactive event stream ─────────────────────────────────────
-  // Uses a named handler function so socket.off() removes ONLY this handler,
-  // not every listener registered for the same event name.
   onEvent<T>(eventName: string): Observable<T> {
     return new Observable<T>((observer) => {
       this.ensureConnected();
-
       const handler = (data: T) => observer.next(data);
-
       this.socket?.on(eventName, handler);
-
-      // Teardown: remove exactly this handler, not all handlers for the event
       return () => {
         this.socket?.off(eventName, handler);
       };
     });
   }
 
-  // ── Emit an event to the server ──────────────────────────────────
   emit(eventName: string, data?: any): void {
     this.ensureConnected();
-    if (this.socket?.connected) {
-      this.socket.emit(eventName, data);
-    }
+    this.socket?.emit(eventName, data);
   }
 
-  // ─────────────────────────────────────────────────────────────
+  emitWithAck<T = any>(eventName: string, data?: any): Observable<T> {
+    return new Observable<T>((observer) => {
+      this.ensureConnected();
+      
+      const doEmit = () => {
+        this.socket?.emit(eventName, data || {}, (response: any) => {
+          if (response?.success) {
+            observer.next(response.data);
+            observer.complete();
+          } else {
+            observer.error(new Error(response?.error || 'Socket error'));
+          }
+        });
+      };
+
+      if (this.socket?.connected) {
+        doEmit();
+      } else {
+        const onConnect = () => {
+          doEmit();
+          this.socket?.off('connect', onConnect);
+        };
+        this.socket?.on('connect', onConnect);
+      }
+    });
+  }
+
   private ensureConnected(): void {
     if (!this.socket) {
       this.connect();

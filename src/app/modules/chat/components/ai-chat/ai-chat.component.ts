@@ -94,7 +94,7 @@ export class AIChatComponent implements OnInit {
     this.scrollToBottom();
 
     this.isTyping = true;
-    this.chatbotService.chat({ message: userText }).subscribe({
+    this.chatbotService.chat({ conversationId: 'ai-coach', message: userText }).subscribe({
       next: (res) => {
         this.isTyping = false;
         const replyText = res.data?.reply || 'I am not sure how to respond to that.';
