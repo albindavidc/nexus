@@ -98,6 +98,14 @@ export class SocketService {
     });
   }
 
+  // ── Emit an event to the server ──────────────────────────────────
+  emit(eventName: string, data?: any): void {
+    this.ensureConnected();
+    if (this.socket?.connected) {
+      this.socket.emit(eventName, data);
+    }
+  }
+
   // ─────────────────────────────────────────────────────────────
   private ensureConnected(): void {
     if (!this.socket) {

@@ -89,10 +89,14 @@ export class ChatWindowComponent implements OnChanges, OnDestroy {
         this.socketService.joinConversation(chatId);
 
         // Listen for new messages reactively over Socket
+        // Backend emits 'new_message' for both direct and group conversations
         this.socketSubscription = this.socketService
-          .onEvent<any>('group:newMessage')
+          .onEvent<any>('new_message')
           .subscribe({
             next: (m) => {
+              const msgConvId = (m.conversation?._id || m.conversation || '').toString();
+              if (msgConvId && msgConvId !== chatId) return;
+
               const myId = this.authService.currentUserId;
               const senderId = this.extractSenderId(m.sender);
               const isMe = !!myId && senderId === myId;

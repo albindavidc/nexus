@@ -76,10 +76,14 @@ export class PartnerChatComponent implements OnChanges, OnDestroy {
         this.socketService.joinConversation(chatId);
 
         // Listen for new messages reactively over Socket
+        // Messages may arrive on the conversation room OR our personal userId room
         this.socketSubscription = this.socketService
           .onEvent<any>('new_message')
           .subscribe({
             next: (m) => {
+              const msgConvId = (m.conversation?._id || m.conversation || '').toString();
+              if (msgConvId && msgConvId !== chatId) return;
+
               const myId = this.authService.currentUserId;
               const senderId = this.extractSenderId(m.sender);
               const isMe = !!myId && senderId === myId;
