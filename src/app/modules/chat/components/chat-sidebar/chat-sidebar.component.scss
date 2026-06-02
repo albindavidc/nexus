@@ -416,3 +416,108 @@
     }
   }
 }
+
+/* ─── Sidebar Footer — Logout ─────────────────────────────── */
+.sidebar-footer {
+  margin-top: auto;
+  flex-shrink: 0;
+}
+
+.sidebar-footer-divider {
+  height: 1px;
+  background: var(--border-color);
+  margin-bottom: var(--space-4);
+}
+
+.sidebar-user-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-3) var(--space-2);
+  border-radius: var(--radius-card);
+  transition: background var(--transition-base);
+}
+
+.sidebar-user-info {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  overflow: hidden;
+}
+
+.sidebar-user-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-pill);
+  background: var(--gradient-accent-diagonal);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 0 0 12px rgba(255, 92, 26, 0.2);
+
+  .sidebar-user-initial {
+    color: white;
+    font-family: var(--font-display);
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: var(--tracking-display);
+    text-transform: uppercase;
+  }
+}
+
+.sidebar-user-details {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+
+  .sidebar-user-name {
+    color: var(--text-primary);
+    font-size: var(--text-bubble);
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .sidebar-user-handle {
+    color: var(--text-muted);
+    font-size: var(--text-timestamp);
+    font-family: var(--font-mono);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+
+.logout-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  border: 1px solid var(--border-color);
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all var(--transition-base);
+  flex-shrink: 0;
+
+  svg {
+    width: 18px;
+    height: 18px;
+  }
+
+  &:hover {
+    background: rgba(255, 77, 77, 0.12);
+    border-color: var(--error-color);
+    color: var(--error-color);
+    transform: var(--hover-lift-btn);
+    box-shadow: 0 0 16px rgba(255, 77, 77, 0.2);
+  }
+
+  &:active {
+    transform: translateY(0);
+  }
+}

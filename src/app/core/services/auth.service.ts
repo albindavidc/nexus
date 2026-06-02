@@ -8,6 +8,7 @@ import {
   RegisterRequest,
   LoginRequest,
   AuthResponse,
+  OtpResponse,
 } from '../models/auth.models';
 
 const USER_STORAGE_KEY = 'nexus_user';
@@ -21,12 +22,14 @@ export class AuthService {
   private _user = signal<User | null>(this._loadUserFromStorage());
   private _isLoading = signal<boolean>(false);
   private _error = signal<string | null>(null);
+  private _pendingEmail = signal<string | null>(null);
 
   // ─── Public Computed ───────────────────────────────────────
   readonly user = this._user.asReadonly();
   readonly isLoading = this._isLoading.asReadonly();
   readonly error = this._error.asReadonly();
   readonly isAuthenticated = computed(() => !!this._user());
+  readonly pendingEmail = this._pendingEmail.asReadonly();
 
   // ─── Convenience getter: always returns a normalised _id string ──
   get currentUserId(): string {
@@ -76,9 +79,9 @@ export class AuthService {
       })
       .pipe(
         tap((res) => {
-          this._saveUser(res.data.user);
           this._isLoading.set(false);
-          this.router.navigate(['/chat']);
+          this._pendingEmail.set(data.email!);
+          this.router.navigate(['/auth/verify-otp']);
         }),
         catchError((err) => {
           const message = err.error?.message || 'Registration failed';
@@ -108,9 +111,67 @@ export class AuthService {
           const message = err.error?.message || 'Login failed';
           this._error.set(message);
           this._isLoading.set(false);
+
+          if (err.error?.data?.requiresVerification) {
+            this._pendingEmail.set(err.error.data.email);
+            this.router.navigate(['/auth/verify-otp']);
+          }
+
           return throwError(() => err);
         })
       );
+  }
+
+  // ─── Send OTP ──────────────────────────────────────────────
+  sendOtp(email: string): Observable<OtpResponse> {
+    this._isLoading.set(true);
+    this._error.set(null);
+
+    return this.http
+      .post<OtpResponse>(`${this.apiUrl}/send-otp`, { email }, {
+        withCredentials: true,
+      })
+      .pipe(
+        tap(() => {
+          this._isLoading.set(false);
+        }),
+        catchError((err) => {
+          const message = err.error?.message || 'Failed to send OTP';
+          this._error.set(message);
+          this._isLoading.set(false);
+          return throwError(() => err);
+        })
+      );
+  }
+
+  // ─── Verify OTP ────────────────────────────────────────────
+  verifyOtp(email: string, otp: string): Observable<AuthResponse> {
+    this._isLoading.set(true);
+    this._error.set(null);
+
+    return this.http
+      .post<AuthResponse>(`${this.apiUrl}/verify-otp`, { email, otp }, {
+        withCredentials: true,
+      })
+      .pipe(
+        tap((res) => {
+          this._saveUser(res.data.user);
+          this._isLoading.set(false);
+          this._pendingEmail.set(null);
+          this.router.navigate(['/chat']);
+        }),
+        catchError((err) => {
+          const message = err.error?.message || 'Verification failed';
+          this._error.set(message);
+          this._isLoading.set(false);
+          return throwError(() => err);
+        })
+      );
+  }
+
+  // ─── Set Pending Email ─────────────────────────────────────
+  setPendingEmail(email: string): void {
+    this._pendingEmail.set(email);
   }
 
   // ─── Logout ────────────────────────────────────────────────
@@ -179,4 +240,3 @@ export class AuthService {
     }
   }
 }
-

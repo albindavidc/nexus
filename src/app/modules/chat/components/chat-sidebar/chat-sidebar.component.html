@@ -195,6 +195,26 @@
       </div>
     </div>
   }
+  <!-- Sidebar Footer — Logout -->
+  <div class="sidebar-footer">
+    <div class="sidebar-footer-divider"></div>
+    <div class="sidebar-user-row">
+      <div class="sidebar-user-info">
+        <div class="sidebar-user-avatar">
+          <span class="sidebar-user-initial">{{ currentUser?.firstName?.charAt(0) || 'U' }}</span>
+        </div>
+        <div class="sidebar-user-details">
+          <span class="sidebar-user-name">{{ currentUser?.firstName }} {{ currentUser?.lastName }}</span>
+          <span class="sidebar-user-handle">&#64;{{ currentUser?.username }}</span>
+        </div>
+      </div>
+      <button id="logout-btn" class="logout-btn" (click)="logout()" title="Logout">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+        </svg>
+      </button>
+    </div>
+  </div>
 
 
 </aside>

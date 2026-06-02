@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { GroupService } from '../../../../core/services/group.service';
 import { ChatService } from '../../../../core/services/chat.service';
+import { AuthService } from '../../../../core/services/auth.service';
 
 @Component({
   selector: 'app-chat-sidebar',
@@ -45,6 +46,15 @@ export class ChatSidebarComponent implements OnChanges {
 
   private groupService = inject(GroupService);
   private chatService = inject(ChatService);
+  authService = inject(AuthService);
+
+  get currentUser() {
+    return this.authService.user();
+  }
+
+  logout(): void {
+    this.authService.logout().subscribe();
+  }
 
   ngOnChanges(changes: SimpleChanges) {
     if (changes['conversations'] && this.conversations && this.conversations.length > 0 && !this.activeDirectChatId) {

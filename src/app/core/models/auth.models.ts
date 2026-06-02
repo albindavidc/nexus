@@ -5,6 +5,7 @@ export interface User {
   username: string;
   email: string;
   avatar?: string;
+  isVerified?: boolean;
   status: 'active' | 'inactive';
   createdAt: string;
   updatedAt: string;
@@ -28,6 +29,20 @@ export interface AuthResponse {
   message: string;
   data: {
     user: User;
+    requiresVerification?: boolean;
+  };
+}
+
+export interface OtpRequest {
+  email: string;
+  otp: string;
+}
+
+export interface OtpResponse {
+  success: boolean;
+  message: string;
+  data?: {
+    user?: User;
   };
 }
 
