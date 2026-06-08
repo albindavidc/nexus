@@ -206,15 +206,15 @@ export class ChatWindowComponent implements OnChanges, OnDestroy {
     this.messages = [];
     this.chatbotService.getHistory().subscribe({
       next: (res) => {
-        const history = res.data?.history || [];
+        const history = res.data?.messages || [];
         this.messages = history.map((m: any) => ({
           id: m._id || Date.now(),
           sender: m.role === 'user' ? 'You' : 'Nexus AI',
           avatar: m.role === 'user' ? '👤' : '🤖',
           avatarColor: m.role === 'user' ? '#1e1e1e' : '#ff5722',
-          text: m.message,
-          time: m.timestamp
-            ? new Date(m.timestamp).toLocaleTimeString([], {
+          text: m.content,
+          time: m.createdAt
+            ? new Date(m.createdAt).toLocaleTimeString([], {
                 hour: '2-digit',
                 minute: '2-digit',
               })

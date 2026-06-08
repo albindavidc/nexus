@@ -4,7 +4,7 @@ import { Observable } from 'rxjs';
 import { environment } from '../../../environments/environment';
 
 @Injectable({
-  providedIn: 'root'
+  providedIn: 'root',
 })
 export class SocketService {
   private socket: Socket | null = null;
@@ -14,17 +14,19 @@ export class SocketService {
   })();
 
   private pendingJoins: string[] = [];
+  private hasAttemptedRefresh = false;
 
   connect(): void {
     if (this.socket?.connected || this.socket) return;
 
     this.socket = io(this.socketUrl, {
       withCredentials: true,
-      autoConnect: true
+      autoConnect: true,
     });
 
     this.socket.on('connect', () => {
       console.log('⚡ Socket connected:', this.socket?.id);
+      this.hasAttemptedRefresh = false;
 
       this.pendingJoins.forEach((id) => {
         this.socket?.emit('join_conversation', { conversationId: id });
@@ -33,8 +35,27 @@ export class SocketService {
       this.pendingJoins = [];
     });
 
-    this.socket.on('connect_error', (err) => {
+    this.socket.on('connect_error', async (err) => {
       console.error('❌ Socket connection error:', err.message);
+
+      if (
+        (err.message === 'Invalid Token' ||
+          err.message === 'Unauthenticated') &&
+        !this.hasAttemptedRefresh
+      ) {
+        this.hasAttemptedRefresh = true;
+        console.log('🔄 Attempting token refresh before reconnecting...');
+
+        const refreshed = await this.refreshToken();
+        if (refreshed) {
+          console.log('✅ Token refreshed, reconnecting socket...');
+          this.socket?.disconnect();
+          this.socket = null;
+          this.connect();
+        } else {
+          console.error('❌ Token refresh failed. User must re-login.');
+        }
+      }
     });
   }
 
@@ -43,6 +64,7 @@ export class SocketService {
       this.socket.disconnect();
       this.socket = null;
       this.pendingJoins = [];
+      this.hasAttemptedRefresh = false;
       console.log('⚡ Socket disconnected');
     }
   }
@@ -88,7 +110,7 @@ export class SocketService {
   emitWithAck<T = any>(eventName: string, data?: any): Observable<T> {
     return new Observable<T>((observer) => {
       this.ensureConnected();
-      
+
       const doEmit = () => {
         this.socket?.emit(eventName, data || {}, (response: any) => {
           if (response?.success) {
@@ -110,6 +132,19 @@ export class SocketService {
         this.socket?.on('connect', onConnect);
       }
     });
+  }
+
+  private async refreshToken(): Promise<boolean> {
+    try {
+      const res = await fetch(`${environment.apiUrl}/auth/refresh-token`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      return res.ok;
+    } catch {
+      return false;
+    }
   }
 
   private ensureConnected(): void {

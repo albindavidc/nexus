@@ -36,16 +36,16 @@ export class AIChatComponent implements OnInit {
     this.messages = [];
     this.chatbotService.getHistory().subscribe({
       next: (res) => {
-        const history = res.data?.history || [];
+        const history = res.data?.messages || [];
         this.messages = history.map((m: any) => ({
           id: m._id || Date.now() + Math.random(),
           sender: m.role === 'user' ? 'You' : 'Nexus AI',
           avatar: m.role === 'user' ? '👤' : '🤖',
           avatarColor: m.role === 'user' ? '#1e1e1e' : '#ff5722',
-          text: m.message,
-          time: m.timestamp ? new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Now',
+          text: m.content,
+          time: m.createdAt ? new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Now',
           isMe: m.role === 'user',
-          hasPerformanceCard: m.message.toLowerCase().includes('recommend') || m.message.toLowerCase().includes('stats')
+          hasPerformanceCard: (m.content || '').toLowerCase().includes('recommend') || (m.content || '').toLowerCase().includes('stats')
         }));
         
         if (this.messages.length === 0) {
