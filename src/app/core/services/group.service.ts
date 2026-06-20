@@ -65,7 +65,13 @@ export class GroupService {
     return this.socketService.emitWithAck('group:get_messages', { groupId });
   }
 
-  sendGroupMessage(groupId: string, text: string): Observable<any> {
-    return this.socketService.emitWithAck('group:send_message', { groupId, content: text });
+  sendGroupMessage(groupId: string, text: string, options?: { type?: string; mediaUrl?: string; mediaMeta?: any }): Observable<any> {
+    return this.socketService.emitWithAck('group:send_message', {
+      groupId,
+      content: text,
+      type: options?.type,
+      mediaUrl: options?.mediaUrl,
+      mediaMeta: options?.mediaMeta,
+    });
   }
 }

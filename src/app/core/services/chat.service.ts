@@ -39,4 +39,12 @@ export class ChatService {
   clearConversation(conversationId: string): Observable<any> {
     return this.socketService.emitWithAck('clear_conversation', { conversationId });
   }
+
+  uploadMedia(file: File): Observable<any> {
+    const formData = new FormData();
+    formData.append('media', file);
+    return this.http.post<any>(`${environment.apiUrl}/chat/upload`, formData, {
+      withCredentials: true
+    });
+  }
 }

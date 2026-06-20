@@ -112,10 +112,34 @@
               }
               
               <div class="message-bubble" [class.bot-bubble]="!msg.isMe && activeChat.type === 'bot'">
-                @if (!msg.isMe && activeChat.type === 'bot') {
-                  <div class="markdown-content" [innerHTML]="msg.text | markdown"></div>
+                @if (msg.type === 'image' && msg.mediaUrl) {
+                  <div class="media-message">
+                    <img [src]="msg.mediaUrl" [alt]="msg.mediaMeta?.filename || 'Image'" class="media-image" loading="lazy" />
+                    @if (msg.text && msg.text !== msg.mediaMeta?.filename) {
+                      <div class="media-caption markdown-content" [innerHTML]="msg.text | markdown"></div>
+                    }
+                  </div>
+                } @else if (msg.type === 'file' && msg.mediaUrl) {
+                  <div class="media-message file-message">
+                    <a [href]="msg.mediaUrl" target="_blank" rel="noopener noreferrer" class="file-download">
+                      <div class="file-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                          <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m.75 12 3 3m0 0 3-3m-3 3v-6m-1.5-9H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
+                        </svg>
+                      </div>
+                      <div class="file-info">
+                        <span class="file-name">{{ msg.mediaMeta?.filename || 'File' }}</span>
+                        @if (msg.mediaMeta?.size) {
+                          <span class="file-size">{{ (msg.mediaMeta.size / 1024) | number:'1.0-0' }} KB</span>
+                        }
+                      </div>
+                    </a>
+                    @if (msg.text && msg.text !== msg.mediaMeta?.filename) {
+                      <div class="media-caption markdown-content" [innerHTML]="msg.text | markdown"></div>
+                    }
+                  </div>
                 } @else {
-                  <p>{{ msg.text }}</p>
+                  <div class="markdown-content" [innerHTML]="msg.text | markdown"></div>
                 }
                 
                 @if (msg.hasPerformanceCard) {
@@ -184,15 +208,77 @@
 
     <!-- Input Area -->
     <div class="input-area-wrapper">
+      <!-- Hidden file input -->
+      <input type="file" #fileInput (change)="handleFileUpload($event)" accept="image/jpeg,image/png,image/webp,video/mp4,application/pdf,application/msword" hidden>
+
+      <!-- Emoji Picker Panel -->
+      @if (showEmojiPicker) {
+        <div class="emoji-picker-wrapper" (click)="$event.stopPropagation()">
+          <div class="emoji-picker">
+            @for (category of emojiCategories; track category.name) {
+              <div class="emoji-category">
+                <div class="emoji-category-label">{{ category.name }}</div>
+                <div class="emoji-grid">
+                  @for (emoji of category.emojis; track emoji) {
+                    <button class="emoji-btn" (click)="insertEmoji(emoji)" type="button">{{ emoji }}</button>
+                  }
+                </div>
+              </div>
+            }
+          </div>
+        </div>
+      }
+
       <div class="input-area">
         <div class="input-container">
-          <input 
-            type="text" 
-            [(ngModel)]="newMessage" 
-            (keyup.enter)="sendMessage()"
-            placeholder="Message {{ activeChat.name }}..." 
-            class="message-input" />
-          <button class="btn-send" (click)="sendMessage()" [class.active]="newMessage.trim().length > 0">
+          <!-- Formatting Toolbar -->
+          <div class="formatting-toolbar">
+            <button class="toolbar-btn" (click)="insertFormatting('bold')" title="Bold (Ctrl+B)" type="button">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+                <path d="M6 4h8a4 4 0 0 1 4 4 4 4 0 0 1-4 4H6V4zm0 8h9a4 4 0 0 1 4 4 4 4 0 0 1-4 4H6v-8z" stroke="currentColor" stroke-width="1" fill="none"/>
+                <path d="M8 6v4h5a2 2 0 1 0 0-4H8zM8 14v4h6a2 2 0 1 0 0-4H8z" fill="currentColor"/>
+              </svg>
+            </button>
+            <button class="toolbar-btn" (click)="insertFormatting('italic')" title="Italic (Ctrl+I)" type="button">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+                <path d="M10 4h4l-2 16H8l2-16z" fill="none" stroke="currentColor" stroke-width="2"/>
+                <line x1="9" y1="4" x2="15" y2="4" stroke="currentColor" stroke-width="2"/>
+                <line x1="7" y1="20" x2="13" y2="20" stroke="currentColor" stroke-width="2"/>
+              </svg>
+            </button>
+
+            <div class="toolbar-divider"></div>
+
+            <button class="toolbar-btn btn-emoji" (click)="toggleEmojiPicker(); $event.stopPropagation()" [class.active]="showEmojiPicker" title="Emoji" type="button">
+              😊
+            </button>
+            <button class="toolbar-btn btn-attach" (click)="triggerFileInput()" [disabled]="isUploading" title="Attach file" type="button">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
+                <path stroke-linecap="round" stroke-linejoin="round" d="m18.375 12.739-7.693 7.693a4.5 4.5 0 0 1-6.364-6.364l10.94-10.94A3 3 0 1 1 19.5 7.372L8.552 18.32m.009-.01-.01.01m5.699-9.941-7.81 7.81a1.5 1.5 0 0 0 2.112 2.13" />
+              </svg>
+            </button>
+          </div>
+
+          <!-- Textarea -->
+          <textarea
+            #messageTextarea
+            [(ngModel)]="newMessage"
+            (keydown)="onTextareaKeydown($event)"
+            (input)="autoResizeTextarea($event)"
+            placeholder="Message {{ activeChat.name }}... (Markdown supported: **bold**, *italic*)"
+            class="message-input"
+            rows="1">
+          </textarea>
+
+          <!-- Upload Indicator -->
+          @if (isUploading) {
+            <div class="upload-indicator">
+              <div class="upload-spinner"></div>
+            </div>
+          }
+
+          <!-- Send Button -->
+          <button class="btn-send" (click)="sendMessage()" [class.active]="newMessage.trim().length > 0" [disabled]="isUploading" type="button">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
               <path d="M3.478 2.404a.75.75 0 00-.926.941l2.432 7.905H13.5a.75.75 0 010 1.5H4.984l-2.432 7.905a.75.75 0 00.926.94 60.519 60.519 0 0018.445-8.986.75.75 0 000-1.218A60.517 60.517 0 003.478 2.404z" />
             </svg>

@@ -18,6 +18,7 @@
     "@angular/platform-browser-dynamic": "^19.2.0",
     "@angular/router": "^19.2.0",
     "@types/marked": "^5.0.2",
+    "dompurify": "^3.4.11",
     "marked": "^18.0.4",
     "rxjs": "~7.8.0",
     "socket.io-client": "^4.8.3",

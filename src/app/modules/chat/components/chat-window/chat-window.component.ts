@@ -8,6 +8,9 @@ import {
   EventEmitter,
   HostListener,
   OnDestroy,
+  ViewChild,
+  ElementRef,
+  AfterViewChecked,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -29,6 +32,8 @@ import { MarkdownPipe } from '../../../../core/pipes/markdown.pipe';
 export class ChatWindowComponent implements OnChanges, OnDestroy {
   @Input() activeChat: any = null;
   @Output() groupAction = new EventEmitter<any>();
+  @ViewChild('messageTextarea') messageTextarea!: ElementRef<HTMLTextAreaElement>;
+  @ViewChild('fileInput') fileInput!: ElementRef<HTMLInputElement>;
 
   menuOpen = false;
 
@@ -41,6 +46,8 @@ export class ChatWindowComponent implements OnChanges, OnDestroy {
   newMessage = '';
   isTyping = false;
   messages: any[] = [];
+  showEmojiPicker = false;
+  isUploading = false;
 
   isSettingsOpen = false;
   editGroupData = {
@@ -64,8 +71,32 @@ export class ChatWindowComponent implements OnChanges, OnDestroy {
     'Set new goal',
   ];
 
+  emojiCategories = [
+    {
+      name: 'Smileys',
+      emojis: ['😀','😂','🤣','😊','😍','🥰','😎','🤩','😇','🙃','😏','🤔','🤗','😤','😢','🥺','😭','😱','🤯','🥳']
+    },
+    {
+      name: 'Fitness',
+      emojis: ['💪','🏋️','🏃','🚴','🧘','🤸','⛹️','🏊','🚣','🤾','🏆','🥇','🎯','🔥','⚡','💯','🏅','🎖️','❤️‍🔥','🦾']
+    },
+    {
+      name: 'Food',
+      emojis: ['🥗','🥑','🍗','🥩','🍳','🥛','🧃','🍌','🍎','🥕','🌽','🥦','🍚','🥜','🫘','🍫','☕','🧋','💧','🍹']
+    },
+    {
+      name: 'Reactions',
+      emojis: ['👍','👎','👏','🙌','🤝','✌️','🤞','🫡','❤️','🧡','💛','💚','💙','💜','🖤','🤍','⭐','✨','💥','🎉']
+    },
+    {
+      name: 'Objects',
+      emojis: ['📸','🎵','📝','📌','🔗','💡','🔔','📅','⏰','🗓️','📊','📈','🎬','🎮','🏠','💻','📱','🎧','🔑','🛡️']
+    }
+  ];
+
   private currentSubscribedChatId: string | null = null;
   private socketSubscription: any = null;
+  private groupSocketSubscription: any = null;
 
   ngOnChanges(changes: SimpleChanges): void {
     if (changes['activeChat'] && this.activeChat) {
@@ -76,6 +107,10 @@ export class ChatWindowComponent implements OnChanges, OnDestroy {
       if (this.socketSubscription) {
         this.socketSubscription.unsubscribe();
         this.socketSubscription = null;
+      }
+      if (this.groupSocketSubscription) {
+        this.groupSocketSubscription.unsubscribe();
+        this.groupSocketSubscription = null;
       }
 
       if (this.activeChat.type === 'bot') {
@@ -122,6 +157,9 @@ export class ChatWindowComponent implements OnChanges, OnDestroy {
                     avatar: '👤',
                     avatarColor: '#1e1e1e',
                     text: m.content,
+                    type: m.type || 'text',
+                    mediaUrl: m.mediaURL || m.mediaUrl,
+                    mediaMeta: m.mediaMeta,
                     time: new Date(m.createdAt).toLocaleTimeString([], {
                       hour: '2-digit',
                       minute: '2-digit',
@@ -141,6 +179,9 @@ export class ChatWindowComponent implements OnChanges, OnDestroy {
                       m.sender?.avatar || m.sender?.username?.charAt(0) || '👤',
                     avatarColor: '#1e1e1e',
                     text: m.content,
+                    type: m.type || 'text',
+                    mediaUrl: m.mediaURL || m.mediaUrl,
+                    mediaMeta: m.mediaMeta,
                     time: new Date(m.createdAt).toLocaleTimeString([], {
                       hour: '2-digit',
                       minute: '2-digit',
@@ -153,6 +194,78 @@ export class ChatWindowComponent implements OnChanges, OnDestroy {
               }
             },
           });
+
+        // Also listen for group:new_message events
+        const isGroup = !this.activeChat.type || this.activeChat.type === 'group';
+        if (isGroup) {
+          this.groupSocketSubscription = this.socketService
+            .onEvent<any>('group:new_message')
+            .subscribe({
+              next: (m) => {
+                const msgGroupRef = (m.groupRef?._id || m.groupRef || '').toString();
+                if (msgGroupRef && msgGroupRef !== chatId) return;
+
+                const myId = this.authService.currentUserId;
+                const senderId = this.extractSenderId(m.sender);
+                const isMe = !!myId && senderId === myId;
+
+                if (isMe) {
+                  const optMsg = this.messages.find(
+                    (msg) =>
+                      msg.isMe &&
+                      msg.text === m.content &&
+                      typeof msg.id === 'number',
+                  );
+                  if (optMsg) {
+                    optMsg.id = m._id;
+                    optMsg.time = new Date(m.createdAt).toLocaleTimeString([], {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    });
+                  } else if (!this.messages.some((msg) => msg.id === m._id)) {
+                    this.messages.push({
+                      id: m._id,
+                      sender: 'You',
+                      avatar: '👤',
+                      avatarColor: '#1e1e1e',
+                      text: m.content,
+                      type: m.type || 'text',
+                      mediaUrl: m.mediaURL || m.mediaUrl,
+                      mediaMeta: m.mediaMeta,
+                      time: new Date(m.createdAt).toLocaleTimeString([], {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      }),
+                      isMe: true,
+                      senderId,
+                    });
+                    this.scrollToBottom();
+                  }
+                } else {
+                  if (!this.messages.some((msg) => msg.id === m._id)) {
+                    this.messages.push({
+                      id: m._id,
+                      sender: m.sender?.username || 'Member',
+                      avatar:
+                        m.sender?.avatar || m.sender?.username?.charAt(0) || '👤',
+                      avatarColor: '#1e1e1e',
+                      text: m.content,
+                      type: m.type || 'text',
+                      mediaUrl: m.mediaURL || m.mediaUrl,
+                      mediaMeta: m.mediaMeta,
+                      time: new Date(m.createdAt).toLocaleTimeString([], {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      }),
+                      isMe: false,
+                      senderId,
+                    });
+                    this.scrollToBottom();
+                  }
+                }
+              },
+            });
+        }
       }
     }
   }
@@ -163,6 +276,9 @@ export class ChatWindowComponent implements OnChanges, OnDestroy {
     }
     if (this.socketSubscription) {
       this.socketSubscription.unsubscribe();
+    }
+    if (this.groupSocketSubscription) {
+      this.groupSocketSubscription.unsubscribe();
     }
   }
 
@@ -187,6 +303,9 @@ export class ChatWindowComponent implements OnChanges, OnDestroy {
             avatar: m.sender?.avatar || m.sender?.username?.charAt(0) || '👤',
             avatarColor: '#1e1e1e',
             text: m.content,
+            type: m.type || 'text',
+            mediaUrl: m.mediaURL || m.mediaUrl,
+            mediaMeta: m.mediaMeta,
             time: new Date(m.createdAt).toLocaleTimeString([], {
               hour: '2-digit',
               minute: '2-digit',
@@ -311,6 +430,142 @@ export class ChatWindowComponent implements OnChanges, OnDestroy {
         },
         error: (err) => console.error('Failed to send message', err),
       });
+    }
+  }
+
+  // ── Formatting Toolbar Methods ──────────────────────────────────
+  insertFormatting(type: 'bold' | 'italic'): void {
+    const textarea = this.messageTextarea?.nativeElement;
+    if (!textarea) return;
+
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const text = this.newMessage;
+    const wrapper = type === 'bold' ? '**' : '*';
+
+    if (start !== end) {
+      // Wrap selected text
+      const selected = text.substring(start, end);
+      this.newMessage =
+        text.substring(0, start) + wrapper + selected + wrapper + text.substring(end);
+      // Put cursor after the wrapped text
+      setTimeout(() => {
+        textarea.focus();
+        textarea.setSelectionRange(end + wrapper.length * 2, end + wrapper.length * 2);
+      });
+    } else {
+      // Insert wrapper at cursor and place cursor between
+      this.newMessage =
+        text.substring(0, start) + wrapper + wrapper + text.substring(start);
+      setTimeout(() => {
+        textarea.focus();
+        textarea.setSelectionRange(start + wrapper.length, start + wrapper.length);
+      });
+    }
+  }
+
+  toggleEmojiPicker(): void {
+    this.showEmojiPicker = !this.showEmojiPicker;
+  }
+
+  insertEmoji(emoji: string): void {
+    const textarea = this.messageTextarea?.nativeElement;
+    if (textarea) {
+      const start = textarea.selectionStart;
+      this.newMessage =
+        this.newMessage.substring(0, start) + emoji + this.newMessage.substring(start);
+      setTimeout(() => {
+        textarea.focus();
+        textarea.setSelectionRange(start + emoji.length, start + emoji.length);
+      });
+    } else {
+      this.newMessage += emoji;
+    }
+  }
+
+  triggerFileInput(): void {
+    this.fileInput?.nativeElement?.click();
+  }
+
+  handleFileUpload(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) return;
+
+    this.isUploading = true;
+
+    this.chatService.uploadMedia(file).subscribe({
+      next: (response) => {
+        const mediaUrl = response.data.mediaUrl;
+        const mediaMeta = response.data.mediaMeta;
+        const msgType = file.type.startsWith('image/') ? 'image' : 'file';
+        const caption = this.newMessage.trim() || file.name;
+
+        // Optimistic UI update
+        this.messages.push({
+          id: Date.now(),
+          sender: 'You',
+          text: caption,
+          type: msgType,
+          mediaUrl,
+          mediaMeta,
+          time: new Date().toLocaleTimeString([], {
+            hour: '2-digit',
+            minute: '2-digit',
+          }),
+          isMe: true,
+        });
+        this.scrollToBottom();
+
+        // Send via socket
+        if (this.activeChat.type === 'bot') {
+          // Bot doesn't support media, skip
+        } else {
+          const chatId = this.activeChat._id || this.activeChat.id;
+          const isGroup = !this.activeChat.type || this.activeChat.type === 'group';
+
+          if (isGroup) {
+            this.groupService.sendGroupMessage(chatId, caption, {
+              type: msgType,
+              mediaUrl,
+              mediaMeta,
+            }).subscribe({
+              error: (err) => console.error('Failed to send media message', err),
+            });
+          } else {
+            this.socketService.emit('send_message', {
+              conversationId: chatId,
+              type: msgType,
+              content: caption,
+              mediaUrl,
+              mediaMeta,
+            });
+          }
+        }
+
+        this.newMessage = '';
+        this.isUploading = false;
+      },
+      error: (err) => {
+        console.error('Upload failed', err);
+        this.isUploading = false;
+      },
+    });
+
+    // Reset file input so the same file can be re-selected
+    input.value = '';
+  }
+
+  autoResizeTextarea(event: Event): void {
+    const textarea = event.target as HTMLTextAreaElement;
+    textarea.style.height = 'auto';
+    textarea.style.height = Math.min(textarea.scrollHeight, 120) + 'px';
+  }
+
+  onTextareaKeydown(event: KeyboardEvent): void {
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault();
+      this.sendMessage();
     }
   }
 
@@ -485,6 +740,9 @@ export class ChatWindowComponent implements OnChanges, OnDestroy {
     const target = event.target as HTMLElement;
     if (!target.closest('.kebab-wrapper')) {
       this.menuOpen = false;
+    }
+    if (!target.closest('.emoji-picker-wrapper') && !target.closest('.btn-emoji')) {
+      this.showEmojiPicker = false;
     }
   }
 
