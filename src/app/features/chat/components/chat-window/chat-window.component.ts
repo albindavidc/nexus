@@ -11,16 +11,47 @@ import {
   ViewChild,
   ElementRef,
   AfterViewChecked,
+  OnInit,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { ChatbotService } from '../../../../core/services/chatbot.service';
-import { ChatService } from '../../../../core/services/chat.service';
-import { AuthService } from '../../../../core/services/auth.service';
-import { GroupService } from '../../../../core/services/group.service';
+import { MarkdownPipe } from '../../../../shared/pipes/markdown.pipe';
+import { ChatbotService } from '../../services/chatbot.service';
+import { ChatService } from '../../services/chat.service';
+import { GroupService } from '../../services/group.service';
+import { AuthService } from '../../../auth/services/auth.service';
 import { SocketService } from '../../../../core/services/socket.service';
+import {
+  IMessage,
+  IConversation,
+  IUser,
+  IGroup,
+  IAPIResponse,
+} from '../../models/chat.models';
+import {
+  debounce,
+  debounceTime,
+  distinctUntilChanged,
+  filter,
+  Subject,
+  switchMap,
+  takeUntil,
+} from 'rxjs';
 
-import { MarkdownPipe } from '../../../../core/pipes/markdown.pipe';
+export interface UIChatMessage {
+  id: string | number;
+  sender: string;
+  avatar: string;
+  avatarColor: string;
+  text: string;
+  type?: string;
+  mediaUrl?: string;
+  mediaMeta?: any;
+  time: string;
+  isMe: boolean;
+  senderId?: string;
+  hasPerformanceCard?: boolean;
+}
 
 @Component({
   selector: 'app-chat-window',
@@ -29,10 +60,11 @@ import { MarkdownPipe } from '../../../../core/pipes/markdown.pipe';
   templateUrl: './chat-window.component.html',
   styleUrls: ['./chat-window.component.scss'],
 })
-export class ChatWindowComponent implements OnChanges, OnDestroy {
+export class ChatWindowComponent implements OnChanges, OnDestroy, OnInit {
   @Input() activeChat: any = null;
-  @Output() groupAction = new EventEmitter<any>();
-  @ViewChild('messageTextarea') messageTextarea!: ElementRef<HTMLTextAreaElement>;
+  @Output() groupAction = new EventEmitter<unknown>();
+  @ViewChild('messageTextarea')
+  messageTextarea!: ElementRef<HTMLTextAreaElement>;
   @ViewChild('fileInput') fileInput!: ElementRef<HTMLInputElement>;
 
   menuOpen = false;
@@ -45,7 +77,7 @@ export class ChatWindowComponent implements OnChanges, OnDestroy {
 
   newMessage = '';
   isTyping = false;
-  messages: any[] = [];
+  messages: UIChatMessage[] = [];
   showEmojiPicker = false;
   isUploading = false;
 
@@ -74,29 +106,185 @@ export class ChatWindowComponent implements OnChanges, OnDestroy {
   emojiCategories = [
     {
       name: 'Smileys',
-      emojis: ['😀','😂','🤣','😊','😍','🥰','😎','🤩','😇','🙃','😏','🤔','🤗','😤','😢','🥺','😭','😱','🤯','🥳']
+      emojis: [
+        '😀',
+        '😂',
+        '🤣',
+        '😊',
+        '😍',
+        '🥰',
+        '😎',
+        '🤩',
+        '😇',
+        '🙃',
+        '😏',
+        '🤔',
+        '🤗',
+        '😤',
+        '😢',
+        '🥺',
+        '😭',
+        '😱',
+        '🤯',
+        '🥳',
+      ],
     },
     {
       name: 'Fitness',
-      emojis: ['💪','🏋️','🏃','🚴','🧘','🤸','⛹️','🏊','🚣','🤾','🏆','🥇','🎯','🔥','⚡','💯','🏅','🎖️','❤️‍🔥','🦾']
+      emojis: [
+        '💪',
+        '🏋️',
+        '🏃',
+        '🚴',
+        '🧘',
+        '🤸',
+        '⛹️',
+        '🏊',
+        '🚣',
+        '🤾',
+        '🏆',
+        '🥇',
+        '🎯',
+        '🔥',
+        '⚡',
+        '💯',
+        '🏅',
+        '🎖️',
+        '❤️‍🔥',
+        '🦾',
+      ],
     },
     {
       name: 'Food',
-      emojis: ['🥗','🥑','🍗','🥩','🍳','🥛','🧃','🍌','🍎','🥕','🌽','🥦','🍚','🥜','🫘','🍫','☕','🧋','💧','🍹']
+      emojis: [
+        '🥗',
+        '🥑',
+        '🍗',
+        '🥩',
+        '🍳',
+        '🥛',
+        '🧃',
+        '🍌',
+        '🍎',
+        '🥕',
+        '🌽',
+        '🥦',
+        '🍚',
+        '🥜',
+        '🫘',
+        '🍫',
+        '☕',
+        '🧋',
+        '💧',
+        '🍹',
+      ],
     },
     {
       name: 'Reactions',
-      emojis: ['👍','👎','👏','🙌','🤝','✌️','🤞','🫡','❤️','🧡','💛','💚','💙','💜','🖤','🤍','⭐','✨','💥','🎉']
+      emojis: [
+        '👍',
+        '👎',
+        '👏',
+        '🙌',
+        '🤝',
+        '✌️',
+        '🤞',
+        '🫡',
+        '❤️',
+        '🧡',
+        '💛',
+        '💚',
+        '💙',
+        '💜',
+        '🖤',
+        '🤍',
+        '⭐',
+        '✨',
+        '💥',
+        '🎉',
+      ],
     },
     {
       name: 'Objects',
-      emojis: ['📸','🎵','📝','📌','🔗','💡','🔔','📅','⏰','🗓️','📊','📈','🎬','🎮','🏠','💻','📱','🎧','🔑','🛡️']
-    }
+      emojis: [
+        '📸',
+        '🎵',
+        '📝',
+        '📌',
+        '🔗',
+        '💡',
+        '🔔',
+        '📅',
+        '⏰',
+        '🗓️',
+        '📊',
+        '📈',
+        '🎬',
+        '🎮',
+        '🏠',
+        '💻',
+        '📱',
+        '🎧',
+        '🔑',
+        '🛡️',
+      ],
+    },
   ];
 
   private currentSubscribedChatId: string | null = null;
   private socketSubscription: any = null;
   private groupSocketSubscription: any = null;
+
+  //searching feature
+  searchResults: IMessage[] = [];
+  isSearching = false;
+
+  private searchSubject = new Subject<string>();
+  private destroy$ = new Subject<void>();
+
+  //searching feature
+  ngOnInit(): void {
+    this.setupSearchStream();
+  }
+  onSearchInput(event: Event) {
+    const target = event.target as HTMLInputElement;
+    this.searchSubject.next(target.value);
+  }
+
+  private setupSearchStream(): void {
+    this.searchSubject
+      .pipe(
+        takeUntil(this.destroy$),
+        debounceTime(400),
+        distinctUntilChanged(),
+        filter((query: string) => {
+          if (query.length < 1) {
+            this.searchResults = [];
+            this.isSearching = false;
+            return false;
+          }
+
+          this.isSearching = true;
+          return true;
+        }),
+        switchMap((query) =>
+          this.chatService.searchMessagesInConversation(
+            this.activeChat._id,
+            query,
+          ),
+        ),
+      )
+      .subscribe({
+        next: (response) => {
+          this.searchResults = response.data || [];
+        },
+        error: (err) => {
+          this.isSearching = false;
+          this.searchResults = [];
+          console.error('Failed to search messages', err);
+        },
+      });
+  }
 
   ngOnChanges(changes: SimpleChanges): void {
     if (changes['activeChat'] && this.activeChat) {
@@ -126,10 +314,14 @@ export class ChatWindowComponent implements OnChanges, OnDestroy {
         // Listen for new messages reactively over Socket
         // Backend emits 'new_message' for both direct and group conversations
         this.socketSubscription = this.socketService
-          .onEvent<any>('new_message')
+          .onEvent<IMessage>('new_message')
           .subscribe({
-            next: (m) => {
-              const msgConvId = (m.conversation?._id || m.conversation || '').toString();
+            next: (m: IMessage) => {
+              const msgConvId = (
+                (m.conversation as any)?._id ||
+                m.conversation ||
+                ''
+              ).toString();
               if (msgConvId && msgConvId !== chatId) return;
 
               const myId = this.authService.currentUserId;
@@ -196,13 +388,18 @@ export class ChatWindowComponent implements OnChanges, OnDestroy {
           });
 
         // Also listen for group:new_message events
-        const isGroup = !this.activeChat.type || this.activeChat.type === 'group';
+        const isGroup =
+          !this.activeChat.type || this.activeChat.type === 'group';
         if (isGroup) {
           this.groupSocketSubscription = this.socketService
-            .onEvent<any>('group:new_message')
+            .onEvent<IMessage>('group:new_message')
             .subscribe({
-              next: (m) => {
-                const msgGroupRef = (m.groupRef?._id || m.groupRef || '').toString();
+              next: (m: IMessage) => {
+                const msgGroupRef = (
+                  (m.groupRef as any)?._id ||
+                  m.groupRef ||
+                  ''
+                ).toString();
                 if (msgGroupRef && msgGroupRef !== chatId) return;
 
                 const myId = this.authService.currentUserId;
@@ -247,7 +444,9 @@ export class ChatWindowComponent implements OnChanges, OnDestroy {
                       id: m._id,
                       sender: m.sender?.username || 'Member',
                       avatar:
-                        m.sender?.avatar || m.sender?.username?.charAt(0) || '👤',
+                        m.sender?.avatar ||
+                        m.sender?.username?.charAt(0) ||
+                        '👤',
                       avatarColor: '#1e1e1e',
                       text: m.content,
                       type: m.type || 'text',
@@ -270,18 +469,6 @@ export class ChatWindowComponent implements OnChanges, OnDestroy {
     }
   }
 
-  ngOnDestroy(): void {
-    if (this.currentSubscribedChatId) {
-      this.socketService.leaveConversation(this.currentSubscribedChatId);
-    }
-    if (this.socketSubscription) {
-      this.socketSubscription.unsubscribe();
-    }
-    if (this.groupSocketSubscription) {
-      this.groupSocketSubscription.unsubscribe();
-    }
-  }
-
   fetchGroupHistory() {
     this.messages = [];
     const chatId = this.activeChat._id || this.activeChat.id;
@@ -295,7 +482,7 @@ export class ChatWindowComponent implements OnChanges, OnDestroy {
       next: (res) => {
         const myId = this.authService.currentUserId;
         const msgList = res.data?.messages || [];
-        const newMessages = msgList.map((m: any) => {
+        const newMessages = msgList.map((m: IMessage) => {
           const senderId = this.extractSenderId(m.sender);
           return {
             id: m._id,
@@ -325,15 +512,15 @@ export class ChatWindowComponent implements OnChanges, OnDestroy {
     this.messages = [];
     this.chatbotService.getHistory().subscribe({
       next: (res) => {
-        const history = res.data?.messages || [];
+        const history = res.data?.history || [];
         this.messages = history.map((m: any) => ({
           id: m._id || Date.now(),
           sender: m.role === 'user' ? 'You' : 'Nexus AI',
           avatar: m.role === 'user' ? '👤' : '🤖',
           avatarColor: m.role === 'user' ? '#1e1e1e' : '#ff5722',
-          text: m.content,
-          time: m.createdAt
-            ? new Date(m.createdAt).toLocaleTimeString([], {
+          text: m.message,
+          time: m.timestamp
+            ? new Date(m.timestamp).toLocaleTimeString([], {
                 hour: '2-digit',
                 minute: '2-digit',
               })
@@ -378,6 +565,8 @@ export class ChatWindowComponent implements OnChanges, OnDestroy {
     this.messages.push({
       id: Date.now(),
       sender: 'You',
+      avatar: '👤',
+      avatarColor: '#1e1e1e',
       text: userText,
       time: new Date().toLocaleTimeString([], {
         hour: '2-digit',
@@ -391,31 +580,33 @@ export class ChatWindowComponent implements OnChanges, OnDestroy {
 
     if (this.activeChat.type === 'bot') {
       this.isTyping = true;
-      this.chatbotService.chat({ conversationId: this.activeChat.id, message: userText }).subscribe({
-        next: (res) => {
-          this.isTyping = false;
-          const replyText =
-            res.data?.reply || 'I am not sure how to respond to that.';
+      this.chatbotService
+        .chat({ conversationId: this.activeChat.id, message: userText })
+        .subscribe({
+          next: (res) => {
+            this.isTyping = false;
+            const replyText =
+              res.data?.reply || 'I am not sure how to respond to that.';
 
-          this.messages.push({
-            id: Date.now(),
-            sender: 'Nexus AI',
-            avatar: '🤖',
-            avatarColor: '#ff5722',
-            text: replyText,
-            time: new Date().toLocaleTimeString([], {
-              hour: '2-digit',
-              minute: '2-digit',
-            }),
-            isMe: false,
-          });
-          this.scrollToBottom();
-        },
-        error: (err) => {
-          console.error(err);
-          this.isTyping = false;
-        },
-      });
+            this.messages.push({
+              id: Date.now(),
+              sender: 'Nexus AI',
+              avatar: '🤖',
+              avatarColor: '#ff5722',
+              text: replyText,
+              time: new Date().toLocaleTimeString([], {
+                hour: '2-digit',
+                minute: '2-digit',
+              }),
+              isMe: false,
+            });
+            this.scrollToBottom();
+          },
+          error: (err) => {
+            console.error(err);
+            this.isTyping = false;
+          },
+        });
     } else {
       const chatId = this.activeChat._id || this.activeChat.id;
       const isGroup = !this.activeChat.type || this.activeChat.type === 'group';
@@ -447,11 +638,18 @@ export class ChatWindowComponent implements OnChanges, OnDestroy {
       // Wrap selected text
       const selected = text.substring(start, end);
       this.newMessage =
-        text.substring(0, start) + wrapper + selected + wrapper + text.substring(end);
+        text.substring(0, start) +
+        wrapper +
+        selected +
+        wrapper +
+        text.substring(end);
       // Put cursor after the wrapped text
       setTimeout(() => {
         textarea.focus();
-        textarea.setSelectionRange(end + wrapper.length * 2, end + wrapper.length * 2);
+        textarea.setSelectionRange(
+          end + wrapper.length * 2,
+          end + wrapper.length * 2,
+        );
       });
     } else {
       // Insert wrapper at cursor and place cursor between
@@ -459,7 +657,10 @@ export class ChatWindowComponent implements OnChanges, OnDestroy {
         text.substring(0, start) + wrapper + wrapper + text.substring(start);
       setTimeout(() => {
         textarea.focus();
-        textarea.setSelectionRange(start + wrapper.length, start + wrapper.length);
+        textarea.setSelectionRange(
+          start + wrapper.length,
+          start + wrapper.length,
+        );
       });
     }
   }
@@ -473,7 +674,9 @@ export class ChatWindowComponent implements OnChanges, OnDestroy {
     if (textarea) {
       const start = textarea.selectionStart;
       this.newMessage =
-        this.newMessage.substring(0, start) + emoji + this.newMessage.substring(start);
+        this.newMessage.substring(0, start) +
+        emoji +
+        this.newMessage.substring(start);
       setTimeout(() => {
         textarea.focus();
         textarea.setSelectionRange(start + emoji.length, start + emoji.length);
@@ -496,8 +699,8 @@ export class ChatWindowComponent implements OnChanges, OnDestroy {
 
     this.chatService.uploadMedia(file).subscribe({
       next: (response) => {
-        const mediaUrl = response.data.mediaUrl;
-        const mediaMeta = response.data.mediaMeta;
+        const mediaUrl = response.data?.mediaUrl;
+        const mediaMeta = response.data?.mediaMeta;
         const msgType = file.type.startsWith('image/') ? 'image' : 'file';
         const caption = this.newMessage.trim() || file.name;
 
@@ -505,6 +708,8 @@ export class ChatWindowComponent implements OnChanges, OnDestroy {
         this.messages.push({
           id: Date.now(),
           sender: 'You',
+          avatar: '👤',
+          avatarColor: '#1e1e1e',
           text: caption,
           type: msgType,
           mediaUrl,
@@ -522,16 +727,20 @@ export class ChatWindowComponent implements OnChanges, OnDestroy {
           // Bot doesn't support media, skip
         } else {
           const chatId = this.activeChat._id || this.activeChat.id;
-          const isGroup = !this.activeChat.type || this.activeChat.type === 'group';
+          const isGroup =
+            !this.activeChat.type || this.activeChat.type === 'group';
 
           if (isGroup) {
-            this.groupService.sendGroupMessage(chatId, caption, {
-              type: msgType,
-              mediaUrl,
-              mediaMeta,
-            }).subscribe({
-              error: (err) => console.error('Failed to send media message', err),
-            });
+            this.groupService
+              .sendGroupMessage(chatId, caption, {
+                type: msgType,
+                mediaUrl,
+                mediaMeta,
+              })
+              .subscribe({
+                error: (err) =>
+                  console.error('Failed to send media message', err),
+              });
           } else {
             this.socketService.emit('send_message', {
               conversationId: chatId,
@@ -741,16 +950,35 @@ export class ChatWindowComponent implements OnChanges, OnDestroy {
     if (!target.closest('.kebab-wrapper')) {
       this.menuOpen = false;
     }
-    if (!target.closest('.emoji-picker-wrapper') && !target.closest('.btn-emoji')) {
+    if (
+      !target.closest('.emoji-picker-wrapper') &&
+      !target.closest('.btn-emoji')
+    ) {
       this.showEmojiPicker = false;
     }
   }
 
   // ── Robust sender ID extraction ──────────────────────────────────
   // Handles populated object ({ _id, id }) and raw ObjectId string
-  private extractSenderId(sender: any): string {
+  private extractSenderId(sender: unknown): string {
     if (!sender) return '';
     if (typeof sender === 'string') return sender.trim();
-    return (sender._id ?? sender.id ?? '').toString().trim();
+    const s = sender as any;
+    return (s._id ?? s.id ?? '').toString().trim();
+  }
+
+  ngOnDestroy(): void {
+    if (this.currentSubscribedChatId) {
+      this.socketService.leaveConversation(this.currentSubscribedChatId);
+    }
+    if (this.socketSubscription) {
+      this.socketSubscription.unsubscribe();
+    }
+    if (this.groupSocketSubscription) {
+      this.groupSocketSubscription.unsubscribe();
+    }
+
+    this.destroy$.next();
+    this.destroy$.complete();
   }
 }

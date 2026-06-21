@@ -1,9 +1,34 @@
 import { Component, EventEmitter, Input, Output, inject, OnChanges, SimpleChanges } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { GroupService } from '../../../../core/services/group.service';
-import { ChatService } from '../../../../core/services/chat.service';
-import { AuthService } from '../../../../core/services/auth.service';
+import { GroupService } from '../../services/group.service';
+import { ChatService } from '../../services/chat.service';
+import { AuthService } from '../../../auth/services/auth.service';
+import { IConversation, IGroup, IUser } from '../../models/chat.models';
+
+export interface UIDirectChat extends IConversation {
+  avatarColor?: string;
+  icon?: string;
+  time?: string;
+  unreadCount?: number;
+}
+
+export interface UIGroupChat extends IGroup {
+  avatarColor?: string;
+  icon?: string;
+  time?: string;
+  unreadCount?: number;
+}
+
+export interface UISearchResult {
+  _id?: string;
+  id?: string;
+  name?: string;
+  description?: string;
+  avatarColor?: string;
+  icon?: string;
+  type: 'user' | 'group';
+}
 
 @Component({
   selector: 'app-chat-sidebar',
@@ -13,9 +38,9 @@ import { AuthService } from '../../../../core/services/auth.service';
   styleUrls: ['./chat-sidebar.component.scss']
 })
 export class ChatSidebarComponent implements OnChanges {
-  @Input() groups: any[] = [];
-  @Input() conversations: any[] = [];
-  @Output() selectChat = new EventEmitter<any>();
+  @Input() groups: UIGroupChat[] = [];
+  @Input() conversations: UIDirectChat[] = [];
+  @Output() selectChat = new EventEmitter<unknown>();
   @Output() tabChange = new EventEmitter<string>();
 
   activeTab = 'CHAT';
@@ -25,7 +50,7 @@ export class ChatSidebarComponent implements OnChanges {
   tabs = ['CHAT', 'GROUPS', 'AI COACH'];
 
   searchQuery = '';
-  searchResults: any[] = [];
+  searchResults: UISearchResult[] = [];
   isSearching = false;
   isCreatingGroup = false;
 
@@ -59,13 +84,13 @@ export class ChatSidebarComponent implements OnChanges {
   ngOnChanges(changes: SimpleChanges) {
     if (changes['conversations'] && this.conversations && this.conversations.length > 0 && !this.activeDirectChatId) {
       const firstConv = this.conversations[0];
-      this.activeDirectChatId = firstConv.id || firstConv._id;
+      this.activeDirectChatId = firstConv._id || '';
     }
   }
 
-  isJoined(group: any): boolean {
-    const groupId = group._id || group.id;
-    return this.groups.some(g => (g._id || g.id) === groupId);
+  isJoined(group: UIGroupChat | UISearchResult): boolean {
+    const groupId = group._id;
+    return this.groups.some(g => g._id === groupId);
   }
 
   setTab(tab: string) {
@@ -76,13 +101,13 @@ export class ChatSidebarComponent implements OnChanges {
     this.tabChange.emit(tab);
   }
 
-  onSelectChat(group: any) {
+  onSelectChat(group: UIDirectChat | UIGroupChat | UISearchResult) {
     if (this.isSearching && this.activeTab === 'CHAT') {
        // Start a direct conversation if clicking a user
-       this.chatService.startDirectConversation(group._id || group.id).subscribe({
+       this.chatService.startDirectConversation(group._id || (group as any).id || '').subscribe({
           next: (res) => {
              const conv = res.data?.conversation || group;
-             this.activeDirectChatId = conv._id || conv.id;
+             this.activeDirectChatId = conv._id || '';
              this.selectChat.emit(conv);
              this.searchQuery = '';
              this.isSearching = false;
@@ -90,7 +115,7 @@ export class ChatSidebarComponent implements OnChanges {
           error: (err) => console.error(err)
        });
     } else {
-       const id = group.id || group._id;
+       const id = group._id || '';
        if (this.activeTab === 'CHAT') {
           this.activeDirectChatId = id;
          } else {
@@ -113,11 +138,11 @@ export class ChatSidebarComponent implements OnChanges {
   performSearch() {
     if (this.activeTab === 'CHAT') {
        this.chatService.searchUsers(this.searchQuery).subscribe({
-          next: (res) => {
-             this.searchResults = res.data?.users?.map((u: any) => ({
+          next: (res: any) => {
+             this.searchResults = res.data?.users?.map((u: IUser) => ({
                  ...u,
                  name: u.username,
-                 description: `${u.firstName} ${u.lastName}`,
+                 description: `${(u as any).firstName || ''} ${(u as any).lastName || ''}`,
                  avatarColor: '#1e1e1e',
                  icon: '👤',
                  type: 'user'
@@ -127,7 +152,7 @@ export class ChatSidebarComponent implements OnChanges {
     } else if (this.activeTab === 'GROUPS') {
        this.groupService.searchGroups(this.searchQuery).subscribe({
           next: (res) => {
-             this.searchResults = res.data?.groups?.map((g: any) => ({
+             this.searchResults = res.data?.groups?.map((g: IGroup) => ({
                  ...g,
                  avatarColor: '#1e1e1e',
                  icon: '👥',
@@ -138,16 +163,15 @@ export class ChatSidebarComponent implements OnChanges {
     }
   }
 
-  joinGroup(group: any, event: Event) {
+  joinGroup(group: UISearchResult, event: Event) {
     event.stopPropagation();
-    this.groupService.joinGroup(group._id || group.id).subscribe({
-       next: (res) => {
+    this.groupService.joinGroup(group._id || '').subscribe({
+       next: (res: any) => {
           this.isSearching = false;
           this.searchQuery = '';
-          // We should ideally reload groups from ChatComponent, so we emit an event
           this.selectChat.emit({ reloadGroups: true, chat: res.data?.group || group });
        },
-       error: (err) => console.error(err)
+       error: (err: Error) => console.error(err)
     });
   }
 
@@ -164,16 +188,16 @@ export class ChatSidebarComponent implements OnChanges {
     }
 
     this.groupService.createGroup(payload).subscribe({
-       next: (res) => {
+       next: (res: any) => {
           this.isCreatingGroup = false;
           this.newGroup = { name: '', description: '', participantIds: [], theme: '#ff6600' };
-          this.selectChat.emit({ reloadGroups: true, chat: res.data?.group });
+          this.selectChat.emit({ reloadGroups: true, chat: res.data?.conversation });
        },
-       error: (err) => console.error('Error creating group:', err)
+       error: (err: Error) => console.error('Error creating group:', err)
     });
   }
 
-  getLastMessageText(group: any): string {
+  getLastMessageText(group: UIDirectChat | UIGroupChat | null | undefined): string {
     if (!group) return '';
     if (group.lastMessage) {
       if (typeof group.lastMessage === 'object' && group.lastMessage.content) {

@@ -1,13 +1,29 @@
 import { Component, inject, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { AuthService } from '../../core/services/auth.service';
-import { GroupService } from '../../core/services/group.service';
-import { ChatService } from '../../core/services/chat.service';
+
 import { SocketService } from '../../core/services/socket.service';
 import { ChatSidebarComponent } from './components/chat-sidebar/chat-sidebar.component';
 import { ChatWindowComponent } from './components/chat-window/chat-window.component';
 import { PartnerChatComponent } from './components/partner-chat/partner-chat.component';
 import { AIChatComponent } from './components/ai-chat/ai-chat.component';
+import { AuthService } from '../auth/services/auth.service';
+import { GroupService } from './services/group.service';
+import { ChatService } from './services/chat.service';
+import { IConversation, IGroup } from './models/chat.models';
+
+export interface UIDirectChat extends IConversation {
+  avatarColor?: string;
+  icon?: string;
+  time?: string;
+  unreadCount?: number;
+}
+
+export interface UIGroupChat extends IGroup {
+  avatarColor?: string;
+  icon?: string;
+  time?: string;
+  unreadCount?: number;
+}
 
 @Component({
   selector: 'app-chat',
@@ -19,34 +35,7 @@ import { AIChatComponent } from './components/ai-chat/ai-chat.component';
     PartnerChatComponent,
     AIChatComponent,
   ],
-  template: `
-    <div class="chat-layout">
-      <app-chat-sidebar
-        [groups]="groups"
-        [conversations]="conversations"
-        (tabChange)="onTabChange($event)"
-        (selectChat)="onChatSelected($event)"
-      ></app-chat-sidebar>
-
-      <ng-container *ngIf="currentTab === 'CHAT'">
-        <app-partner-chat
-          [activeChat]="activeDirectChat"
-          (groupAction)="onGroupAction($event)"
-        ></app-partner-chat>
-      </ng-container>
-
-      <ng-container *ngIf="currentTab === 'GROUPS'">
-        <app-chat-window
-          [activeChat]="activeGroupChat"
-          (groupAction)="onGroupAction($event)"
-        ></app-chat-window>
-      </ng-container>
-
-      <ng-container *ngIf="currentTab === 'AI COACH'">
-        <app-ai-chat></app-ai-chat>
-      </ng-container>
-    </div>
-  `,
+  templateUrl: './chat.component.html',
   styleUrl: './chat.component.scss',
 })
 export class ChatComponent implements OnInit, OnDestroy {
@@ -55,16 +44,17 @@ export class ChatComponent implements OnInit, OnDestroy {
   chatService = inject(ChatService);
   private socketService = inject(SocketService);
 
-  groups: any[] = [];
-  conversations: any[] = [];
+  groups: UIGroupChat[] = [];
+  conversations: UIDirectChat[] = [];
 
   currentTab = 'CHAT';
-  activeDirectChat: any = null;
-  activeGroupChat: any = null;
+  activeDirectChat:
+    | UIDirectChat
+    | { type: string; id?: string; _id?: string }
+    | null = null;
+  activeGroupChat: UIGroupChat | null = null;
 
   ngOnInit() {
-    // Connect socket FIRST — before fetching data so the socket is ready
-    // by the time child components call joinConversation()
     this.socketService.connect();
 
     this.fetchConversations();
@@ -79,9 +69,9 @@ export class ChatComponent implements OnInit, OnDestroy {
     this.chatService.getConversations().subscribe({
       next: (res) => {
         const currentUserId = this.authService.user()?._id;
-        const apiConversations =
-          res.data?.conversations?.map((c: any) => {
-            const otherParticipant = c.participants?.find((p: any) => {
+        const apiConversations: UIDirectChat[] =
+          res.data?.conversations?.map((c: IConversation) => {
+            const otherParticipant: any = c.participants?.find((p: any) => {
               const pId = p._id || p;
               return pId !== currentUserId;
             });
@@ -97,7 +87,7 @@ export class ChatComponent implements OnInit, OnDestroy {
               time: 'Now',
               unreadCount: 0,
               isActive: true,
-              type: 'direct',
+              type: 'DIRECT',
             };
           }) || [];
 
@@ -118,10 +108,10 @@ export class ChatComponent implements OnInit, OnDestroy {
     this.groupService.getMyGroups().subscribe({
       next: (res) => {
         this.groups =
-          res.data?.groups?.map((g: any) => ({
+          res.data?.groups?.map((g: IGroup) => ({
             ...g,
             avatarColor: g.theme || '#1e1e1e',
-            icon: this.getIcon(g.name),
+            icon: this.getIcon(g.name || ''),
             time: 'Now',
             unreadCount: 0,
             isActive: true,
@@ -133,7 +123,7 @@ export class ChatComponent implements OnInit, OnDestroy {
 
         if (targetId) {
           this.activeGroupChat =
-            this.groups.find((g) => g.id === targetId || g._id === targetId) ||
+            this.groups.find((g) => g._id === targetId) ||
             this.activeGroupChat;
         }
       },
@@ -166,9 +156,9 @@ export class ChatComponent implements OnInit, OnDestroy {
       this.fetchConversations();
     } else {
       if (this.currentTab === 'CHAT') {
-        this.activeDirectChat = chat;
+        this.activeDirectChat = chat as UIDirectChat;
       } else {
-        this.activeGroupChat = chat;
+        this.activeGroupChat = chat as UIGroupChat;
       }
     }
   }

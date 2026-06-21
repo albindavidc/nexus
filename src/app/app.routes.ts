@@ -7,13 +7,13 @@ export const routes: Routes = [
     path: 'auth',
     canActivate: [guestGuard],
     loadChildren: () =>
-      import('./modules/auth/auth.routes').then((m) => m.AUTH_ROUTES),
+      import('./features/auth/auth.routes').then((m) => m.AUTH_ROUTES),
   },
   {
     path: 'chat',
     canActivate: [authGuard],
     loadComponent: () =>
-      import('./modules/chat/chat.component').then((m) => m.ChatComponent),
+      import('./features/chat/chat.component').then((m) => m.ChatComponent),
   },
   { path: '**', redirectTo: 'auth' },
 ];

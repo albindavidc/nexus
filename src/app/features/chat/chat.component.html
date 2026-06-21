@@ -1,0 +1,26 @@
+<div class="chat-layout">
+  <app-chat-sidebar
+    [groups]="groups"
+    [conversations]="conversations"
+    (tabChange)="onTabChange($event)"
+    (selectChat)="onChatSelected($event)"
+  ></app-chat-sidebar>
+
+  <ng-container *ngIf="currentTab === 'CHAT'">
+    <app-partner-chat
+      [activeChat]="activeDirectChat"
+      (groupAction)="onGroupAction($event)"
+    ></app-partner-chat>
+  </ng-container>
+
+  <ng-container *ngIf="currentTab === 'GROUPS'">
+    <app-chat-window
+      [activeChat]="activeGroupChat"
+      (groupAction)="onGroupAction($event)"
+    ></app-chat-window>
+  </ng-container>
+
+  <ng-container *ngIf="currentTab === 'AI COACH'">
+    <app-ai-chat></app-ai-chat>
+  </ng-container>
+</div>

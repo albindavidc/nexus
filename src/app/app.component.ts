@@ -1,9 +1,9 @@
 import { Component, DestroyRef, inject } from '@angular/core';
 import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
 import { RouterOutlet } from '@angular/router';
-import { AuthService } from './core/services/auth.service';
 import { NotificationService } from './core/services/notification.service';
 import { filter, take } from 'rxjs';
+import { AuthService } from './features/auth/services/auth.service';
 
 @Component({
   selector: 'app-root',
@@ -19,8 +19,8 @@ export class AppComponent {
   private readonly destroyRef = inject(DestroyRef);
   private readonly user$ = toObservable(this.authService.user);
 
-  ngOnInit(){
-    this.notificationService.init()
+  ngOnInit() {
+    this.notificationService.init();
     this.handlePushOnAuth();
   }
 

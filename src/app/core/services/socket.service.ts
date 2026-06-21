@@ -102,22 +102,23 @@ export class SocketService {
     });
   }
 
-  emit(eventName: string, data?: any): void {
+  emit(eventName: string, data?: unknown): void {
     this.ensureConnected();
     this.socket?.emit(eventName, data);
   }
 
-  emitWithAck<T = any>(eventName: string, data?: any): Observable<T> {
+  emitWithAck<T>(eventName: string, data?: unknown): Observable<T> {
     return new Observable<T>((observer) => {
       this.ensureConnected();
 
       const doEmit = () => {
-        this.socket?.emit(eventName, data || {}, (response: any) => {
-          if (response?.success) {
-            observer.next(response);
+        this.socket?.emit(eventName, data || {}, (response: Record<string, unknown>) => {
+          if (response && response['success']) {
+            observer.next(response as unknown as T);
             observer.complete();
           } else {
-            observer.error(new Error(response?.error || 'Socket error'));
+            const errStr = response && typeof response['error'] === 'string' ? response['error'] : 'Socket error';
+            observer.error(new Error(errStr));
           }
         });
       };

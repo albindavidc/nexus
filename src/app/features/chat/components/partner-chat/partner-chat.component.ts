@@ -13,12 +13,25 @@ import {
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { ChatbotService } from '../../../../core/services/chatbot.service';
-import { ChatService } from '../../../../core/services/chat.service';
-import { AuthService } from '../../../../core/services/auth.service';
-import { GroupService } from '../../../../core/services/group.service';
+import { ChatbotService } from '../../services/chatbot.service';
+import { ChatService } from '../../services/chat.service';
+import { AuthService } from '../../../auth/services/auth.service';
+import { GroupService } from '../../services/group.service';
 import { SocketService } from '../../../../core/services/socket.service';
-import { MarkdownPipe } from '../../../../core/pipes/markdown.pipe';
+import { MarkdownPipe } from '../../../../shared/pipes/markdown.pipe';
+import { IConversation, IMessage, IUser } from '../../models/chat.models';
+
+export interface UIMessage {
+  id: string | number;
+  sender: string;
+  avatar: string;
+  avatarColor: string;
+  text: string;
+  time: string;
+  isMe: boolean;
+  senderId?: string;
+  hasPerformanceCard?: boolean;
+}
 
 @Component({
   selector: 'app-partner-chat',
@@ -28,15 +41,15 @@ import { MarkdownPipe } from '../../../../core/pipes/markdown.pipe';
   styleUrls: ['./partner-chat.component.scss'],
 })
 export class PartnerChatComponent implements OnChanges, OnDestroy {
-  @Input() activeChat: any = null;
-  @Output() groupAction = new EventEmitter<any>();
+  @Input() activeChat: any = null; // Can be a Conversation or a 'bot' chat object
+  @Output() groupAction = new EventEmitter<unknown>();
 
   @ViewChild('scrollMe') private myScrollContainer!: ElementRef;
 
   menuOpen = false;
   newMessage = '';
   isTyping = false;
-  messages: any[] = [];
+  messages: UIMessage[] = [];
 
   private chatbotService = inject(ChatbotService);
   private chatService = inject(ChatService);
@@ -56,7 +69,6 @@ export class PartnerChatComponent implements OnChanges, OnDestroy {
 
   ngOnChanges(changes: SimpleChanges): void {
     if (changes['activeChat'] && this.activeChat) {
-      // Leave previous socket room if any
       if (this.currentSubscribedChatId) {
         this.socketService.leaveConversation(this.currentSubscribedChatId);
       }
@@ -72,16 +84,18 @@ export class PartnerChatComponent implements OnChanges, OnDestroy {
         this.currentSubscribedChatId = chatId;
         this.fetchPartnerHistory();
 
-        // Join new room
         this.socketService.joinConversation(chatId);
 
-        // Listen for new messages reactively over Socket
-        // Messages may arrive on the conversation room OR our personal userId room
         this.socketSubscription = this.socketService
-          .onEvent<any>('new_message')
+          .onEvent<IMessage>('new_message')
           .subscribe({
-            next: (m) => {
-              const msgConvId = (m.conversation?._id || m.conversation || '').toString();
+            next: (m: IMessage) => {
+              const msgConvObj = m.conversation as any;
+              const msgConvId = (
+                msgConvObj?._id ||
+                msgConvObj ||
+                ''
+              ).toString();
               if (msgConvId && msgConvId !== chatId) return;
 
               const myId = this.authService.currentUserId;
@@ -89,7 +103,6 @@ export class PartnerChatComponent implements OnChanges, OnDestroy {
               const isMe = !!myId && senderId === myId;
 
               if (isMe) {
-                // Match and replace optimistic message
                 const optMsg = this.messages.find(
                   (msg) =>
                     msg.isMe &&
@@ -119,7 +132,6 @@ export class PartnerChatComponent implements OnChanges, OnDestroy {
                   this.scrollToBottom();
                 }
               } else {
-                // Incoming message from partner
                 if (!this.messages.some((msg) => msg.id === m._id)) {
                   this.messages.push({
                     id: m._id,
@@ -164,8 +176,7 @@ export class PartnerChatComponent implements OnChanges, OnDestroy {
       next: (res) => {
         const myId = this.authService.currentUserId;
         const msgList = res.data?.messages || [];
-        const newMessages = msgList.map((m: any) => {
-          // Sender may be a populated object OR raw ObjectId string
+        const newMessages: UIMessage[] = msgList.map((m: IMessage) => {
           const senderId = this.extractSenderId(m.sender);
           return {
             id: m._id,
@@ -188,7 +199,8 @@ export class PartnerChatComponent implements OnChanges, OnDestroy {
         this.messages = newMessages;
         this.scrollToBottom();
       },
-      error: (err) => console.error('Failed to fetch partner messages', err),
+      error: (err: Error) =>
+        console.error('Failed to fetch partner messages', err),
     });
   }
 
@@ -232,7 +244,7 @@ export class PartnerChatComponent implements OnChanges, OnDestroy {
         }
         this.scrollToBottom();
       },
-      error: (err) => {
+      error: (err: Error) => {
         console.error('Failed to fetch bot history', err);
         this.messages = [];
       },
@@ -248,11 +260,7 @@ export class PartnerChatComponent implements OnChanges, OnDestroy {
     if (!this.newMessage.trim()) return;
 
     const userText = this.newMessage;
-    const currentUserId =
-      (this.authService.user() as any)?._id ||
-      (this.authService.user() as any)?.id;
 
-    // Optimistic UI update
     this.messages.push({
       id: Date.now() + Math.random(),
       sender: 'You',
@@ -271,56 +279,58 @@ export class PartnerChatComponent implements OnChanges, OnDestroy {
 
     if (this.activeChat.type === 'bot') {
       this.isTyping = true;
-      this.chatbotService.chat({ conversationId: this.activeChat.id, message: userText }).subscribe({
-        next: (res) => {
-          this.isTyping = false;
-          const replyText =
-            res.data?.reply || 'I am not sure how to respond to that.';
+      this.chatbotService
+        .chat({ conversationId: this.activeChat.id, message: userText })
+        .subscribe({
+          next: (res) => {
+            this.isTyping = false;
+            const replyText =
+              res.data?.reply || 'I am not sure how to respond to that.';
 
-          this.messages.push({
-            id: Date.now() + Math.random(),
-            sender: 'Nexus AI',
-            avatar: '👩‍🦰',
-            avatarColor: '#ff5722',
-            text: replyText,
-            time: new Date().toLocaleTimeString([], {
-              hour: '2-digit',
-              minute: '2-digit',
-            }),
-            isMe: false,
-            hasPerformanceCard:
-              replyText.toLowerCase().includes('recommend') ||
-              replyText.toLowerCase().includes('stats') ||
-              replyText.toLowerCase().includes('upper body'),
-          });
-          this.scrollToBottom();
-        },
-        error: (err) => {
-          console.error(err);
-          this.isTyping = false;
-        },
-      });
+            this.messages.push({
+              id: Date.now() + Math.random(),
+              sender: 'Nexus AI',
+              avatar: '👩‍🦰',
+              avatarColor: '#ff5722',
+              text: replyText,
+              time: new Date().toLocaleTimeString([], {
+                hour: '2-digit',
+                minute: '2-digit',
+              }),
+              isMe: false,
+              hasPerformanceCard:
+                replyText.toLowerCase().includes('recommend') ||
+                replyText.toLowerCase().includes('stats') ||
+                replyText.toLowerCase().includes('upper body'),
+            });
+            this.scrollToBottom();
+          },
+          error: (err: Error) => {
+            console.error(err);
+            this.isTyping = false;
+          },
+        });
     } else {
       const chatId = this.activeChat._id || this.activeChat.id;
 
       this.chatService.sendMessage(chatId, userText).subscribe({
-        next: (res) => {
+        next: () => {
           // successfully sent
         },
-        error: (err) => console.error('Failed to send partner message', err),
+        error: (err: Error) =>
+          console.error('Failed to send partner message', err),
       });
     }
   }
 
-  // ── The only correct isMine computation ──────────────────────────
-  // Handles populated object ({ _id, id }) and raw ObjectId string
-  private extractSenderId(sender: any): string {
+  private extractSenderId(sender: unknown): string {
     if (!sender) return '';
     if (typeof sender === 'string') return sender.trim();
-    return (sender._id ?? sender.id ?? '').toString().trim();
+    const s = sender as any;
+    return (s._id ?? s.id ?? '').toString().trim();
   }
 
-  isMe(msg: any): boolean {
+  isMe(msg: UIMessage): boolean {
     return !!msg.isMe;
   }
 
@@ -362,7 +372,7 @@ export class PartnerChatComponent implements OnChanges, OnDestroy {
             });
             this.scrollToBottom();
           },
-          error: (err) => console.error('Failed to clear history:', err),
+          error: (err: Error) => console.error('Failed to clear history:', err),
         });
       }
     } else {
@@ -374,7 +384,7 @@ export class PartnerChatComponent implements OnChanges, OnDestroy {
           next: () => {
             this.messages = [];
           },
-          error: (err) =>
+          error: (err: Error) =>
             console.error('Failed to clear conversation history:', err),
         });
       }

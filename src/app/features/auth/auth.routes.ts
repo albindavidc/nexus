@@ -5,16 +5,16 @@ export const AUTH_ROUTES: Routes = [
   {
     path: 'login',
     loadComponent: () =>
-      import('./login/login.component').then((m) => m.LoginComponent),
+      import('./components/login/login.component').then((m) => m.LoginComponent),
   },
   {
     path: 'register',
     loadComponent: () =>
-      import('./register/register.component').then((m) => m.RegisterComponent),
+      import('./components/register/register.component').then((m) => m.RegisterComponent),
   },
   {
     path: 'verify-otp',
     loadComponent: () =>
-      import('./verify-otp/verify-otp.component').then((m) => m.VerifyOtpComponent),
+      import('./components/verify-otp/verify-otp.component').then((m) => m.VerifyOtpComponent),
   },
 ];
