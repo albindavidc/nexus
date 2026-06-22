@@ -5,9 +5,10 @@ import { SocketService } from '../../../core/services/socket.service';
 import { environment } from '../../../../environments/environment';
 import {
   IConversation,
-  IMessage,
   IUser,
   ISocketResponse,
+  IMediaMeta,
+  IMessage,
 } from '../models/chat.models';
 
 export interface SearchUsersResponse {
@@ -82,12 +83,16 @@ export class ChatService {
   sendMessage(
     conversationId: string,
     text: string,
+    options?: { type?: string; mediaUrl?: string; mediaMeta?: IMediaMeta },
   ): Observable<ISocketResponse<{ message: IMessage }>> {
     return this.socketService.emitWithAck<
       ISocketResponse<{ message: IMessage }>
     >('send_message', {
       conversationId,
       content: text,
+      type: options?.type,
+      mediaUrl: options?.mediaUrl,
+      mediaMeta: options?.mediaMeta,
     });
   }
 
@@ -129,7 +134,7 @@ export class ChatService {
       `${environment.apiUrl}/chat/${conversationId}/chat/search`,
       {
         params: {
-          q: query,
+          query: query,
         },
         withCredentials: true,
       },

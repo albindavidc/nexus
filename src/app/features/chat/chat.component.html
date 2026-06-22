@@ -7,20 +7,24 @@
   ></app-chat-sidebar>
 
   <ng-container *ngIf="currentTab === 'CHAT'">
-    <app-partner-chat
+    <app-direct-chat
       [activeChat]="activeDirectChat"
       (groupAction)="onGroupAction($event)"
-    ></app-partner-chat>
+    ></app-direct-chat>
   </ng-container>
 
   <ng-container *ngIf="currentTab === 'GROUPS'">
-    <app-chat-window
+    <app-group-chat
       [activeChat]="activeGroupChat"
       (groupAction)="onGroupAction($event)"
-    ></app-chat-window>
+    ></app-group-chat>
   </ng-container>
 
   <ng-container *ngIf="currentTab === 'AI COACH'">
     <app-ai-chat></app-ai-chat>
+  </ng-container>
+
+  <ng-container *ngIf="currentTab === 'NOTIFICATIONS'">
+    <app-notifications></app-notifications>
   </ng-container>
 </div>

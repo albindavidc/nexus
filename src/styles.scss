@@ -525,3 +525,22 @@ h1, h2, h3, h4, h5, h6 {
   color: var(--accent-primary);
   text-decoration: underline;
 }
+
+/* --- Search Highlighting --- */
+mark.search-highlight {
+  border-radius: 2px;
+  padding: 0 2px;
+  transition: all 0.2s ease;
+  font-weight: 500;
+  
+  &.passive {
+    background-color: #fef08a; /* Yellow */
+    color: #1f2937; /* Dark gray for contrast */
+  }
+
+  &.active {
+    background-color: #fb923c; /* Orange */
+    color: #ffffff; /* White text */
+    box-shadow: 0 0 10px rgba(251, 146, 60, 0.4);
+  }
+}

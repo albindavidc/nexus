@@ -1,23 +1,29 @@
-import { Component, EventEmitter, Input, Output, inject, OnChanges, SimpleChanges } from '@angular/core';
+import { Component, EventEmitter, Input, Output, inject, OnChanges, SimpleChanges, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { GroupService } from '../../services/group.service';
 import { ChatService } from '../../services/chat.service';
 import { AuthService } from '../../../auth/services/auth.service';
+import { SocketService } from '../../../../core/services/socket.service';
 import { IConversation, IGroup, IUser } from '../../models/chat.models';
+import { Subject, debounceTime, distinctUntilChanged, switchMap } from 'rxjs';
 
 export interface UIDirectChat extends IConversation {
+  id?: string | number;
   avatarColor?: string;
   icon?: string;
   time?: string;
   unreadCount?: number;
+  isOnline?: boolean;
 }
 
 export interface UIGroupChat extends IGroup {
+  id?: string | number;
   avatarColor?: string;
   icon?: string;
   time?: string;
   unreadCount?: number;
+  isOnline?: boolean;
 }
 
 export interface UISearchResult {
@@ -37,7 +43,7 @@ export interface UISearchResult {
   templateUrl: './chat-sidebar.component.html',
   styleUrls: ['./chat-sidebar.component.scss']
 })
-export class ChatSidebarComponent implements OnChanges {
+export class ChatSidebarComponent implements OnChanges, OnInit, OnDestroy {
   @Input() groups: UIGroupChat[] = [];
   @Input() conversations: UIDirectChat[] = [];
   @Output() selectChat = new EventEmitter<unknown>();
@@ -61,6 +67,10 @@ export class ChatSidebarComponent implements OnChanges {
     theme: '#ff6600'
   };
 
+  participantSearchQuery = '';
+  participantSearchResults: IUser[] = [];
+  selectedParticipants: IUser[] = [];
+
   availableThemes = [
     { name: 'Nexus Orange', value: '#ff6600' },
     { name: 'Neon Blue', value: '#00bfff' },
@@ -71,7 +81,11 @@ export class ChatSidebarComponent implements OnChanges {
 
   private groupService = inject(GroupService);
   private chatService = inject(ChatService);
+  private socketService = inject(SocketService);
   authService = inject(AuthService);
+
+  private presenceSubscription: any = null;
+  private searchSubject = new Subject<string>();
 
   get currentUser() {
     return this.authService.user();
@@ -82,9 +96,127 @@ export class ChatSidebarComponent implements OnChanges {
   }
 
   ngOnChanges(changes: SimpleChanges) {
+    if (changes['conversations'] || changes['groups']) {
+      this.recalculateOnlineStatuses();
+    }
+    
     if (changes['conversations'] && this.conversations && this.conversations.length > 0 && !this.activeDirectChatId) {
       const firstConv = this.conversations[0];
       this.activeDirectChatId = firstConv._id || '';
+    }
+  }
+
+  ngOnInit() {
+    this.searchSubject.pipe(
+      debounceTime(300),
+      distinctUntilChanged(),
+      switchMap((query) => {
+        if (!query.trim()) {
+          this.participantSearchResults = [];
+          return [];
+        }
+        return this.chatService.searchUsers(query);
+      })
+    ).subscribe({
+      next: (res: any) => {
+        if (res && res.data) {
+          const myId = this.authService.currentUserId;
+          this.participantSearchResults = (res.data.users || []).filter(
+            (u: IUser) => u._id !== myId && !this.selectedParticipants.some((p) => p._id === u._id)
+          );
+        }
+      },
+      error: (err: Error) => console.error('Search failed', err)
+    });
+
+    const onlineSub = this.socketService.onEvent<{ userId: string }>('user_online').subscribe(({ userId }) => {
+      this.updateUserOnlineStatus(userId, true);
+    });
+
+    const offlineSub = this.socketService.onEvent<{ userId: string }>('user_offline').subscribe(({ userId }) => {
+      this.updateUserOnlineStatus(userId, false);
+    });
+
+    this.presenceSubscription = {
+      unsubscribe: () => {
+        onlineSub.unsubscribe();
+        offlineSub.unsubscribe();
+      }
+    };
+  }
+
+  ngOnDestroy() {
+    if (this.presenceSubscription) {
+      this.presenceSubscription.unsubscribe();
+      this.presenceSubscription = null;
+    }
+  }
+
+  private recalculateOnlineStatuses() {
+    const myId = this.authService.currentUserId;
+    
+    if (this.conversations) {
+      this.conversations.forEach(chat => {
+        if (!chat.participants) return;
+        const partner = chat.participants.find(p => p._id !== myId);
+        if (partner) {
+          chat.isOnline = partner.status === 'online';
+        }
+      });
+    }
+
+    if (this.groups) {
+      this.groups.forEach(group => {
+        if (!group.members) return;
+        // Group is considered 'online' in sidebar if any member (other than me) is online
+        const hasOnlineMember = group.members.some(m => {
+           const uId = m.user?._id;
+           return uId !== myId && m.user?.status === 'online';
+        });
+        group.isOnline = hasOnlineMember;
+      });
+    }
+  }
+
+  private updateUserOnlineStatus(userId: string, isOnline: boolean) {
+    // Update underlying participant/member object and the derived `isOnline` flag
+    const statusStr = isOnline ? 'online' : 'offline';
+    const myId = this.authService.currentUserId;
+
+    if (this.conversations) {
+      this.conversations.forEach(chat => {
+        if (chat.participants) {
+          const participant = chat.participants.find(p => p._id === userId);
+          if (participant) {
+            participant.status = statusStr;
+            // Update chat's isOnline if this was the partner
+            if (participant._id !== myId) {
+              chat.isOnline = isOnline;
+            }
+          }
+        }
+      });
+    }
+
+    if (this.groups) {
+      this.groups.forEach(group => {
+        let memberUpdated = false;
+        if (group.members) {
+          const member = group.members.find(m => m.user?._id === userId);
+          if (member && member.user) {
+            member.user.status = statusStr;
+            memberUpdated = true;
+          }
+        }
+        
+        // Recalculate group.isOnline if a member was updated
+        if (memberUpdated) {
+          group.isOnline = group.members?.some(m => {
+            const uId = m.user?._id;
+            return uId !== myId && m.user?.status === 'online';
+          }) || false;
+        }
+      });
     }
   }
 
@@ -181,20 +313,48 @@ export class ChatSidebarComponent implements OnChanges {
 
   createGroupSubmit() {
     if (!this.newGroup.name.trim()) return;
+    if (this.selectedParticipants.length === 0) {
+      alert('Please select at least one participant.');
+      return;
+    }
     
     const payload: any = { ...this.newGroup };
-    if (!payload.participantIds || payload.participantIds.length === 0) {
-       delete payload.participantIds;
-    }
 
     this.groupService.createGroup(payload).subscribe({
        next: (res: any) => {
           this.isCreatingGroup = false;
           this.newGroup = { name: '', description: '', participantIds: [], theme: '#ff6600' };
+          this.selectedParticipants = [];
+          this.participantSearchQuery = '';
+          this.participantSearchResults = [];
           this.selectChat.emit({ reloadGroups: true, chat: res.data?.conversation });
        },
        error: (err: Error) => console.error('Error creating group:', err)
     });
+  }
+
+  searchParticipants() {
+    this.searchSubject.next(this.participantSearchQuery);
+  }
+
+  addParticipant(user: IUser) {
+    if (!this.selectedParticipants.some((u) => u._id === user._id)) {
+      this.selectedParticipants.push(user);
+      this.newGroup.participantIds.push(user._id as string);
+      this.participantSearchResults = this.participantSearchResults.filter(
+        (u) => u._id !== user._id
+      );
+      this.participantSearchQuery = '';
+    }
+  }
+
+  removeParticipant(user: IUser) {
+    this.selectedParticipants = this.selectedParticipants.filter(
+      (u) => u._id !== user._id
+    );
+    this.newGroup.participantIds = this.newGroup.participantIds.filter(
+      (id) => id !== user._id
+    );
   }
 
   getLastMessageText(group: UIDirectChat | UIGroupChat | null | undefined): string {

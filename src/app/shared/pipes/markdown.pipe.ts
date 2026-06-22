@@ -10,9 +10,18 @@ import DOMPurify from 'dompurify';
 export class MarkdownPipe implements PipeTransform {
   constructor(private sanitizer: DomSanitizer) {}
 
-  transform(value: string | null | undefined): SafeHtml {
+  transform(value: string | null | undefined, searchQuery?: string, isActive: boolean = false): SafeHtml {
     if (!value) return '';
-    const parsedHtml = marked.parse(value) as string;
+    let parsedHtml = marked.parse(value) as string;
+    
+    if (searchQuery && searchQuery.trim() !== '') {
+      const escapedQuery = searchQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+      const regex = new RegExp(`(?![^<]*>)(${escapedQuery})`, 'gi');
+      const highlightClass = isActive ? 'search-highlight active' : 'search-highlight passive';
+      parsedHtml = parsedHtml.replace(regex, `<mark class="${highlightClass}">$1</mark>`);
+    }
+    
     const cleanHTML = DOMPurify.sanitize(parsedHtml);
     return this.sanitizer.bypassSecurityTrustHtml(cleanHTML);
   }

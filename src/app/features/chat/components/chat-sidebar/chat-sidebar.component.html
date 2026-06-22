@@ -101,7 +101,7 @@
               </div>
               <div class="chat-snippet">
                 <span class="message-preview">{{ getLastMessageText(chat) }}</span>
-                @if(chat.unreadCount > 0) {
+                @if((chat.unreadCount || 0) > 0) {
                   <span class="unread-badge">{{ chat.unreadCount }}</span>
                 }
               </div>
@@ -131,7 +131,7 @@
               </div>
               <div class="chat-snippet">
                 <span class="message-preview">{{ getLastMessageText(group) }}</span>
-                @if(group.unreadCount > 0) {
+                @if((group.unreadCount || 0) > 0) {
                   <span class="unread-badge">{{ group.unreadCount }}</span>
                 }
               </div>
@@ -172,6 +172,47 @@
           <label class="form-label">Description</label>
           <input type="text" [(ngModel)]="newGroup.description" placeholder="What's this group about?" class="form-control">
         </div>
+        <div class="form-group mb-2">
+          <label class="form-label">Participants</label>
+          
+          <!-- Selected Participants Pills -->
+          @if (selectedParticipants.length > 0) {
+            <div class="selected-participants mb-1">
+              @for (p of selectedParticipants; track p._id) {
+                <span class="participant-pill">
+                  {{ p.username }}
+                  <button class="remove-btn" (click)="removeParticipant(p)">✕</button>
+                </span>
+              }
+            </div>
+          }
+
+          <!-- Participant Search Input -->
+          <div class="participant-search-box">
+            <input 
+              type="text" 
+              class="form-control" 
+              placeholder="Search users to add..." 
+              [(ngModel)]="participantSearchQuery" 
+              (ngModelChange)="searchParticipants()"
+            >
+            
+            <!-- Search Results Dropdown -->
+            @if (participantSearchResults.length > 0) {
+              <div class="search-dropdown">
+                @for (user of participantSearchResults; track user._id) {
+                  <div class="dropdown-item" (click)="addParticipant(user)">
+                    <div class="user-info">
+                      <span class="user-avatar">{{ user.avatar || user.username.charAt(0) || '👤' }}</span>
+                      <span class="user-name">{{ user.username }}</span>
+                    </div>
+                    <button class="add-btn-small">+</button>
+                  </div>
+                }
+              </div>
+            }
+          </div>
+        </div>
         
         <div class="theme-selection mb-2">
           <label class="form-label">Select Theme:</label>
@@ -208,11 +249,18 @@
           <span class="sidebar-user-handle">&#64;{{ currentUser?.username }}</span>
         </div>
       </div>
-      <button id="logout-btn" class="logout-btn" (click)="logout()" title="Logout">
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-        </svg>
-      </button>
+      <div class="sidebar-user-actions" style="display: flex; gap: 8px;">
+        <button class="logout-btn" (click)="setTab('NOTIFICATIONS')" title="Notifications">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0" />
+          </svg>
+        </button>
+        <button id="logout-btn" class="logout-btn" (click)="logout()" title="Logout">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+          </svg>
+        </button>
+      </div>
     </div>
   </div>
 

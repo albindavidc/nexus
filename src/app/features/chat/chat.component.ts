@@ -3,8 +3,8 @@ import { CommonModule } from '@angular/common';
 
 import { SocketService } from '../../core/services/socket.service';
 import { ChatSidebarComponent } from './components/chat-sidebar/chat-sidebar.component';
-import { ChatWindowComponent } from './components/chat-window/chat-window.component';
-import { PartnerChatComponent } from './components/partner-chat/partner-chat.component';
+import { GroupChatComponent } from './components/group-chat/group-chat.component';
+import { ChatComponent as DirectChatComponent } from './components/chat/chat.component';
 import { AIChatComponent } from './components/ai-chat/ai-chat.component';
 import { AuthService } from '../auth/services/auth.service';
 import { GroupService } from './services/group.service';
@@ -24,6 +24,7 @@ export interface UIGroupChat extends IGroup {
   time?: string;
   unreadCount?: number;
 }
+import { NotificationsComponent } from './components/notifications/notifications.component';
 
 @Component({
   selector: 'app-chat',
@@ -31,9 +32,10 @@ export interface UIGroupChat extends IGroup {
   imports: [
     CommonModule,
     ChatSidebarComponent,
-    ChatWindowComponent,
-    PartnerChatComponent,
+    GroupChatComponent,
+    DirectChatComponent,
     AIChatComponent,
+    NotificationsComponent,
   ],
   templateUrl: './chat.component.html',
   styleUrl: './chat.component.scss',

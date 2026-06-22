@@ -1,6 +1,8 @@
 import { Injectable, inject } from '@angular/core';
+import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { SocketService } from '../../../core/services/socket.service';
+import { environment } from '../../../../environments/environment';
 import {
   IGroup,
   IMessage,
@@ -24,6 +26,8 @@ export interface UpdateGroupDto {
 })
 export class GroupService {
   private socketService = inject(SocketService);
+  private http = inject(HttpClient);
+  private apiUrl = `${environment.apiUrl}/chat`;
 
   getMyGroups(): Observable<ISocketResponse<{ groups: IGroup[] }>> {
     return this.socketService.emitWithAck<
@@ -42,10 +46,10 @@ export class GroupService {
 
   createGroup(
     data: CreateGroupDto,
-  ): Observable<ISocketResponse<{ conversation: IGroup }>> {
-    return this.socketService.emitWithAck<
-      ISocketResponse<{ conversation: IGroup }>
-    >('create_group_conversation', data);
+  ): Observable<any> {
+    return this.http.post<any>(`${this.apiUrl}/group`, data, {
+      withCredentials: true,
+    });
   }
 
   joinGroup(groupId: string): Observable<ISocketResponse<{ group: IGroup }>> {
@@ -111,5 +115,15 @@ export class GroupService {
       mediaUrl: options?.mediaUrl,
       mediaMeta: options?.mediaMeta,
     });
+  }
+
+  addMembers(
+    groupId: string,
+    userIds: string[],
+  ): Observable<ISocketResponse<{ group: IGroup }>> {
+    return this.socketService.emitWithAck<ISocketResponse<{ group: IGroup }>>(
+      'group:add_members',
+      { groupId, userIds },
+    );
   }
 }

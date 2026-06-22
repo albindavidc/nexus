@@ -10,7 +10,8 @@ import {
   OnDestroy,
   ViewChild,
   ElementRef,
-  AfterViewChecked,
+  ViewChildren,
+  QueryList,
   OnInit,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
@@ -21,21 +22,16 @@ import { ChatService } from '../../services/chat.service';
 import { GroupService } from '../../services/group.service';
 import { AuthService } from '../../../auth/services/auth.service';
 import { SocketService } from '../../../../core/services/socket.service';
+import { IMessage, IUser } from '../../models/chat.models';
 import {
-  IMessage,
-  IConversation,
-  IUser,
-  IGroup,
-  IAPIResponse,
-} from '../../models/chat.models';
-import {
-  debounce,
   debounceTime,
   distinctUntilChanged,
   filter,
   Subject,
   switchMap,
   takeUntil,
+  catchError,
+  of,
 } from 'rxjs';
 
 export interface UIChatMessage {
@@ -54,18 +50,20 @@ export interface UIChatMessage {
 }
 
 @Component({
-  selector: 'app-chat-window',
+  selector: 'app-group-chat',
   standalone: true,
   imports: [CommonModule, FormsModule, MarkdownPipe],
-  templateUrl: './chat-window.component.html',
-  styleUrls: ['./chat-window.component.scss'],
+  templateUrl: './group-chat.component.html',
+  styleUrls: ['./group-chat.component.scss'],
 })
-export class ChatWindowComponent implements OnChanges, OnDestroy, OnInit {
+export class GroupChatComponent implements OnChanges, OnDestroy, OnInit {
   @Input() activeChat: any = null;
   @Output() groupAction = new EventEmitter<unknown>();
   @ViewChild('messageTextarea')
   messageTextarea!: ElementRef<HTMLTextAreaElement>;
   @ViewChild('fileInput') fileInput!: ElementRef<HTMLInputElement>;
+  @ViewChild('scrollMe') private myScrollContainer!: ElementRef;
+  @ViewChildren('messageElement') messageElements!: QueryList<ElementRef>;
 
   menuOpen = false;
 
@@ -234,21 +232,168 @@ export class ChatWindowComponent implements OnChanges, OnDestroy, OnInit {
   private currentSubscribedChatId: string | null = null;
   private socketSubscription: any = null;
   private groupSocketSubscription: any = null;
+  private presenceSubscription: any = null;
 
   //searching feature
   searchResults: IMessage[] = [];
   isSearching = false;
+  currentSearchIndex = 0;
+  currentSearchQuery = '';
 
   private searchSubject = new Subject<string>();
+
+  originalScrollPosition: number | null = null;
+
+  get activeSearchMessageId(): string | null {
+    if (this.searchResults.length > 0 && this.currentSearchIndex >= 0) {
+      return this.searchResults[this.currentSearchIndex]._id;
+    }
+    return null;
+  }
+
+  handleSearchKeydown(event: KeyboardEvent) {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      if (event.shiftKey) {
+        this.prevSearchResult();
+      } else {
+        this.nextSearchResult();
+      }
+    }
+  }
+
+  onSearchInput(event: Event) {
+    const target = event.target as HTMLInputElement;
+    this.currentSearchQuery = target.value;
+    
+    if (this.originalScrollPosition === null) {
+      const scrollEl = this.myScrollContainer?.nativeElement;
+      if (scrollEl) {
+        this.originalScrollPosition = scrollEl.scrollTop;
+      }
+    }
+    
+    this.searchSubject.next(target.value);
+  }
+
+  nextSearchResult() {
+    if (this.searchResults.length > 0) {
+      this.currentSearchIndex = (this.currentSearchIndex + 1) % this.searchResults.length;
+      this.scrollToSearchResult();
+    }
+  }
+
+  prevSearchResult() {
+    if (this.searchResults.length > 0) {
+      this.currentSearchIndex = (this.currentSearchIndex - 1 + this.searchResults.length) % this.searchResults.length;
+      this.scrollToSearchResult();
+    }
+  }
+
+  private scrollToMatch(index: number): void {
+    if (!this.searchResults[index]) return;
+    const matchId = this.searchResults[index]._id || (this.searchResults[index] as any).id;
+    
+    const targetElement = this.messageElements.find(
+      (el) => el.nativeElement.id === `msg-${matchId}`
+    );
+    
+    if (targetElement) {
+      targetElement.nativeElement.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center'
+      });
+    }
+  }
+
+  scrollToSearchResult() {
+    this.scrollToMatch(this.currentSearchIndex);
+  }
+
+  resetScrollPosition() {
+    if (this.originalScrollPosition !== null && this.myScrollContainer?.nativeElement) {
+      this.myScrollContainer.nativeElement.scrollTo({
+        top: this.originalScrollPosition,
+        behavior: 'smooth'
+      });
+      this.originalScrollPosition = null;
+    }
+  }
+  
+  // Participant search for Edit Group
+  participantSearchQuery = '';
+  participantSearchResults: IUser[] = [];
+  selectedNewParticipants: IUser[] = [];
+  private participantSearchSubject = new Subject<string>();
+
   private destroy$ = new Subject<void>();
 
   //searching feature
   ngOnInit(): void {
     this.setupSearchStream();
+    this.setupParticipantSearchStream();
   }
-  onSearchInput(event: Event) {
+  
+
+
+  onParticipantSearchInput(event: Event) {
     const target = event.target as HTMLInputElement;
-    this.searchSubject.next(target.value);
+    this.participantSearchSubject.next(target.value);
+  }
+
+  addParticipant(user: IUser) {
+    if (!this.selectedNewParticipants.some(p => p._id === user._id)) {
+      this.selectedNewParticipants.push(user);
+    }
+    this.participantSearchQuery = '';
+    this.participantSearchResults = [];
+  }
+
+  removeParticipant(user: IUser) {
+    this.selectedNewParticipants = this.selectedNewParticipants.filter(p => p._id !== user._id);
+  }
+
+  private setupParticipantSearchStream(): void {
+    this.participantSearchSubject
+      .pipe(
+        takeUntil(this.destroy$),
+        debounceTime(300),
+        distinctUntilChanged(),
+        switchMap((query: string) => {
+          if (!query.trim()) {
+            this.participantSearchResults = [];
+            return [];
+          }
+          return this.chatService.searchUsers(query);
+        })
+      )
+      .subscribe({
+        next: (res: any) => {
+          if (res && res.data) {
+            const myId = this.authService.currentUserId;
+            // Exclude current user, existing members, and already selected new participants
+            const existingMemberIds = this.activeChat?.members?.map((m: any) => m.user._id || m.user.id) || [];
+            this.participantSearchResults = (res.data.users || []).filter(
+              (u: IUser) => 
+                u._id !== myId && 
+                !existingMemberIds.includes(u._id) &&
+                !this.selectedNewParticipants.some((p) => p._id === u._id)
+            );
+          }
+        },
+        error: (err) => {
+          console.error('Participant search failed', err);
+          this.participantSearchResults = [];
+        }
+      });
+  }
+
+  resetSearch(): void {
+    this.searchResults = [];
+    this.isSearching = false;
+    this.currentSearchIndex = 0;
+    this.currentSearchQuery = '';
+    this.resetScrollPosition();
   }
 
   private setupSearchStream(): void {
@@ -259,8 +404,7 @@ export class ChatWindowComponent implements OnChanges, OnDestroy, OnInit {
         distinctUntilChanged(),
         filter((query: string) => {
           if (query.length < 1) {
-            this.searchResults = [];
-            this.isSearching = false;
+            this.resetSearch();
             return false;
           }
 
@@ -269,18 +413,30 @@ export class ChatWindowComponent implements OnChanges, OnDestroy, OnInit {
         }),
         switchMap((query) =>
           this.chatService.searchMessagesInConversation(
-            this.activeChat._id,
+            this.activeChat._id || this.activeChat.id,
             query,
-          ),
+          ).pipe(
+            catchError((err) => {
+              console.error('Failed to search messages', err);
+              return of({ data: [] });
+            })
+          )
         ),
       )
       .subscribe({
         next: (response) => {
           this.searchResults = response.data || [];
+          console.log('Search Results fetched:', this.searchResults);
+          if (this.searchResults.length > 0) {
+            this.currentSearchIndex = 0;
+            setTimeout(() => this.scrollToMatch(0), 50);
+          }
+          this.isSearching = false;
         },
         error: (err) => {
           this.isSearching = false;
           this.searchResults = [];
+          this.currentSearchIndex = 0;
           console.error('Failed to search messages', err);
         },
       });
@@ -288,6 +444,8 @@ export class ChatWindowComponent implements OnChanges, OnDestroy, OnInit {
 
   ngOnChanges(changes: SimpleChanges): void {
     if (changes['activeChat'] && this.activeChat) {
+      this.resetSearch();
+      
       // Leave previous socket room if any
       if (this.currentSubscribedChatId) {
         this.socketService.leaveConversation(this.currentSubscribedChatId);
@@ -299,6 +457,10 @@ export class ChatWindowComponent implements OnChanges, OnDestroy, OnInit {
       if (this.groupSocketSubscription) {
         this.groupSocketSubscription.unsubscribe();
         this.groupSocketSubscription = null;
+      }
+      if (this.presenceSubscription) {
+        this.presenceSubscription.unsubscribe();
+        this.presenceSubscription = null;
       }
 
       if (this.activeChat.type === 'bot') {
@@ -465,6 +627,46 @@ export class ChatWindowComponent implements OnChanges, OnDestroy, OnInit {
               },
             });
         }
+
+        // Listen for online status
+        const onlineSub = this.socketService
+          .onEvent<{ userId: string }>('user_online')
+          .subscribe(({ userId }) => {
+            this.updateParticipantStatus(userId, 'online');
+          });
+
+        const offlineSub = this.socketService
+          .onEvent<{ userId: string }>('user_offline')
+          .subscribe(({ userId }) => {
+            this.updateParticipantStatus(userId, 'offline');
+          });
+
+        this.presenceSubscription = {
+          unsubscribe: () => {
+            onlineSub.unsubscribe();
+            offlineSub.unsubscribe();
+          },
+        };
+      }
+    }
+  }
+
+  updateParticipantStatus(userId: string, status: string): void {
+    if (!this.activeChat) return;
+
+    if (this.activeChat.type === 'group' && this.activeChat.members) {
+      const member = this.activeChat.members.find(
+        (m: any) => m.user?._id === userId || m.user?.id === userId,
+      );
+      if (member && member.user) {
+        member.user.status = status;
+      }
+    } else if (this.activeChat.participants) {
+      const participant = this.activeChat.participants.find(
+        (p: any) => p._id === userId || p.id === userId,
+      );
+      if (participant) {
+        participant.status = status;
       }
     }
   }
@@ -634,8 +836,28 @@ export class ChatWindowComponent implements OnChanges, OnDestroy, OnInit {
     const text = this.newMessage;
     const wrapper = type === 'bold' ? '**' : '*';
 
+    const isWrapped =
+      start >= wrapper.length &&
+      end <= text.length - wrapper.length &&
+      text.substring(start - wrapper.length, start) === wrapper &&
+      text.substring(end, end + wrapper.length) === wrapper;
+
+    if (isWrapped) {
+      this.newMessage =
+        text.substring(0, start - wrapper.length) +
+        text.substring(start, end) +
+        text.substring(end + wrapper.length);
+      setTimeout(() => {
+        textarea.focus();
+        textarea.setSelectionRange(
+          start - wrapper.length,
+          end - wrapper.length,
+        );
+      });
+      return;
+    }
+
     if (start !== end) {
-      // Wrap selected text
       const selected = text.substring(start, end);
       this.newMessage =
         text.substring(0, start) +
@@ -643,7 +865,6 @@ export class ChatWindowComponent implements OnChanges, OnDestroy, OnInit {
         selected +
         wrapper +
         text.substring(end);
-      // Put cursor after the wrapped text
       setTimeout(() => {
         textarea.focus();
         textarea.setSelectionRange(
@@ -652,7 +873,6 @@ export class ChatWindowComponent implements OnChanges, OnDestroy, OnInit {
         );
       });
     } else {
-      // Insert wrapper at cursor and place cursor between
       this.newMessage =
         text.substring(0, start) + wrapper + wrapper + text.substring(start);
       setTimeout(() => {
@@ -799,6 +1019,25 @@ export class ChatWindowComponent implements OnChanges, OnDestroy, OnInit {
     return count > 0 ? count : 1;
   }
 
+  isPartnerOnline(): boolean {
+    if (
+      !this.activeChat ||
+      this.activeChat.type === 'group' ||
+      this.activeChat.type === 'bot'
+    )
+      return false;
+
+    // Find the other participant
+    const myId = this.authService.currentUserId;
+    if (!this.activeChat.participants) return false;
+
+    const partner = this.activeChat.participants.find(
+      (p: any) => (p._id || p.id) !== myId,
+    );
+
+    return partner?.status === 'online';
+  }
+
   isGroupAdminOrOwner(): boolean {
     if (!this.activeChat || this.activeChat.type === 'bot') return false;
 
@@ -826,6 +1065,9 @@ export class ChatWindowComponent implements OnChanges, OnDestroy, OnInit {
       description: this.activeChat.description || '',
       theme: this.activeChat.theme || '#ff6600',
     };
+    this.selectedNewParticipants = [];
+    this.participantSearchQuery = '';
+    this.participantSearchResults = [];
     this.isSettingsOpen = true;
   }
 
@@ -837,20 +1079,41 @@ export class ChatWindowComponent implements OnChanges, OnDestroy, OnInit {
     if (!this.activeChat || this.activeChat.type === 'bot') return;
     const chatId = this.activeChat._id || this.activeChat.id;
 
-    this.groupService.updateGroup(chatId, this.editGroupData).subscribe({
-      next: (res) => {
-        this.isSettingsOpen = false;
-        const updatedGroup = res.data?.group;
-        this.groupAction.emit({
-          action: 'update',
-          groupId: chatId,
-          group: updatedGroup,
-        });
-      },
-      error: (err) => {
-        console.error('Failed to update group settings:', err);
-      },
-    });
+    // Handle adding new members
+    if (this.selectedNewParticipants.length > 0) {
+      const userIds = this.selectedNewParticipants.map(p => p._id);
+      this.groupService.addMembers(chatId, userIds).subscribe({
+        next: () => {
+          this.selectedNewParticipants = [];
+          // Note: the backend will emit group:add_members, which can be handled via socket
+        },
+        error: (err) => console.error('Failed to add members', err)
+      });
+    }
+
+    // Handle group details update
+    if (
+      this.editGroupData.name !== this.activeChat.name ||
+      this.editGroupData.description !== this.activeChat.description ||
+      this.editGroupData.theme !== this.activeChat.theme
+    ) {
+      this.groupService.updateGroup(chatId, this.editGroupData).subscribe({
+        next: (res) => {
+          this.isSettingsOpen = false;
+          const updatedGroup = res.data?.group;
+          this.groupAction.emit({
+            action: 'update',
+            groupId: chatId,
+            group: updatedGroup,
+          });
+        },
+        error: (err) => {
+          console.error('Failed to update group settings:', err);
+        },
+      });
+    } else {
+      this.isSettingsOpen = false;
+    }
   }
 
   deleteGroup() {
