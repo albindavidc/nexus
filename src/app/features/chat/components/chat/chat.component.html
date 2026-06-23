@@ -4,11 +4,11 @@
     <div class="header-left">
       <div class="avatar-container" [style.backgroundColor]="activeChat.avatarColor || '#333'">
         <span class="avatar-emoji">{{ activeChat.icon || '👤' }}</span>
-        <span class="status-indicator online"></span>
+        <span class="status-indicator" [class.online]="activeChat.type === 'bot' || activeChat.isOnline"></span>
       </div>
       <div class="partner-info">
         <h3>{{ activeChat.name }}</h3>
-        <span class="status-text">{{ activeChat.type === 'bot' ? 'AI Personal Trainer · Online' : 'Workout Partner · Online' }}</span>
+        <span class="status-text">{{ activeChat.type === 'bot' ? 'AI Personal Trainer · Online' : 'Workout Partner · ' + (activeChat.isOnline ? 'Online' : 'Offline') }}</span>
       </div>
     </div>
     

@@ -150,10 +150,19 @@ export class ChatComponent implements OnInit, OnDestroy {
       this.fetchConversations();
     } else {
       if (this.currentTab === 'CHAT') {
-        this.activeDirectChat = chat as UIDirectChat;
+        this.activeDirectChat = chat;
       } else {
-        this.activeGroupChat = chat as UIGroupChat;
+        this.activeGroupChat = chat;
       }
+    }
+  }
+
+  onPresenceChange() {
+    if (this.activeDirectChat) {
+      this.activeDirectChat = { ...this.activeDirectChat } as any;
+    }
+    if (this.activeGroupChat) {
+      this.activeGroupChat = { ...this.activeGroupChat } as any;
     }
   }
 

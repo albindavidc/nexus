@@ -48,6 +48,7 @@ export class ChatSidebarComponent implements OnChanges, OnInit, OnDestroy {
   @Input() conversations: UIDirectChat[] = [];
   @Output() selectChat = new EventEmitter<unknown>();
   @Output() tabChange = new EventEmitter<string>();
+  @Output() presenceChange = new EventEmitter<void>();
 
   activeTab = 'CHAT';
   activeDirectChatId: string | number = '';
@@ -59,6 +60,7 @@ export class ChatSidebarComponent implements OnChanges, OnInit, OnDestroy {
   searchResults: UISearchResult[] = [];
   isSearching = false;
   isCreatingGroup = false;
+  hasUnreadNotifications = false;
 
   newGroup = {
     name: '',
@@ -137,10 +139,17 @@ export class ChatSidebarComponent implements OnChanges, OnInit, OnDestroy {
       this.updateUserOnlineStatus(userId, false);
     });
 
+    const notifSub = this.socketService.onEvent<any>('new_notification').subscribe(() => {
+      if (this.activeTab !== 'NOTIFICATIONS') {
+        this.hasUnreadNotifications = true;
+      }
+    });
+
     this.presenceSubscription = {
       unsubscribe: () => {
         onlineSub.unsubscribe();
         offlineSub.unsubscribe();
+        notifSub.unsubscribe();
       }
     };
   }
@@ -218,6 +227,8 @@ export class ChatSidebarComponent implements OnChanges, OnInit, OnDestroy {
         }
       });
     }
+
+    this.presenceChange.emit();
   }
 
   isJoined(group: UIGroupChat | UISearchResult): boolean {
@@ -230,6 +241,9 @@ export class ChatSidebarComponent implements OnChanges, OnInit, OnDestroy {
     this.searchQuery = '';
     this.isSearching = false;
     this.searchResults = [];
+    if (tab === 'NOTIFICATIONS') {
+      this.hasUnreadNotifications = false;
+    }
     this.tabChange.emit(tab);
   }
 

@@ -1015,11 +1015,11 @@ export class GroupChatComponent implements OnChanges, OnDestroy, OnInit {
   }
 
   getOnlineCount(): number {
-    if (!this.activeChat || !this.activeChat.members) return 1;
+    if (!this.activeChat || !this.activeChat.members) return 0;
     const count = this.activeChat.members.filter(
       (m: any) => m.user?.status === 'online',
     ).length;
-    return count > 0 ? count : 1;
+    return count;
   }
 
   isPartnerOnline(): boolean {

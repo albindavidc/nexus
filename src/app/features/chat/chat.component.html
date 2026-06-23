@@ -4,6 +4,7 @@
     [conversations]="conversations"
     (tabChange)="onTabChange($event)"
     (selectChat)="onChatSelected($event)"
+    (presenceChange)="onPresenceChange()"
   ></app-chat-sidebar>
 
   <ng-container *ngIf="currentTab === 'CHAT'">

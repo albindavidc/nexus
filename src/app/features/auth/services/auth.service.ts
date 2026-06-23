@@ -1,4 +1,4 @@
-import { Injectable, signal, computed } from '@angular/core';
+import { Injectable, signal, computed, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Router } from '@angular/router';
 import { Observable, tap, catchError, throwError } from 'rxjs';
@@ -10,6 +10,7 @@ import {
   AuthResponse,
   OtpResponse,
 } from '../models/auth.models';
+import { SocketService } from '../../../core/services/socket.service';
 
 const USER_STORAGE_KEY = 'nexus_user';
 
@@ -169,6 +170,8 @@ export class AuthService {
       );
   }
 
+  private socketService = inject(SocketService);
+
   // ─── Set Pending Email ─────────────────────────────────────
   setPendingEmail(email: string): void {
     this._pendingEmail.set(email);
@@ -180,11 +183,13 @@ export class AuthService {
       .post(`${this.apiUrl}/logout`, {}, { withCredentials: true })
       .pipe(
         tap(() => {
+          this.socketService.disconnect();
           this._clearUser();
           this.router.navigate(['/auth/login']);
         }),
         catchError((err) => {
           // Still clear user on error
+          this.socketService.disconnect();
           this._clearUser();
           this.router.navigate(['/auth/login']);
           return throwError(() => err);
