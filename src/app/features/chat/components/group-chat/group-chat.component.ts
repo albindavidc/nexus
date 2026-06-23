@@ -22,6 +22,7 @@ import { ChatService } from '../../services/chat.service';
 import { GroupService } from '../../services/group.service';
 import { AuthService } from '../../../auth/services/auth.service';
 import { SocketService } from '../../../../core/services/socket.service';
+import { environment } from '../../../../../environments/environment';
 import { IMessage, IUser } from '../../models/chat.models';
 import {
   debounceTime,
@@ -50,10 +51,21 @@ export interface UIChatMessage {
   hasPerformanceCard?: boolean;
 }
 
+import { FilePondModule, registerPlugin } from 'ngx-filepond';
+import FilePondPluginImagePreview from 'filepond-plugin-image-preview';
+import FilePondPluginFileValidateType from 'filepond-plugin-file-validate-type';
+import FilePondPluginFileValidateSize from 'filepond-plugin-file-validate-size';
+
+registerPlugin(
+  FilePondPluginImagePreview,
+  FilePondPluginFileValidateType,
+  FilePondPluginFileValidateSize
+);
+
 @Component({
   selector: 'app-group-chat',
   standalone: true,
-  imports: [CommonModule, FormsModule, MarkdownPipe],
+  imports: [CommonModule, FormsModule, MarkdownPipe, FilePondModule],
   templateUrl: './group-chat.component.html',
   styleUrls: ['./group-chat.component.scss'],
 })
@@ -909,9 +921,95 @@ export class GroupChatComponent implements OnChanges, OnDestroy, OnInit {
     }
   }
 
+  showUploadModal = false;
+
+  pondOptions = {
+    class: 'nexus-filepond',
+    multiple: false,
+    labelIdle: 'Drop files here or <span class="filepond--label-action">Browse</span>',
+    acceptedFileTypes: ['image/jpeg', 'image/png', 'image/webp', 'video/mp4', 'application/pdf', 'application/msword'],
+    maxFileSize: '10MB',
+    name: 'media',
+    server: {
+      url: `${environment.apiUrl}/chat/upload`,
+      process: {
+        withCredentials: true,
+        onload: (response: any) => {
+          try {
+            const res = JSON.parse(response);
+            if (res.data) {
+              this.handleFilePondSuccess(res.data);
+            }
+          } catch (e) {
+            console.error('Error parsing FilePond response', e);
+          }
+          return response;
+        }
+      }
+    }
+  };
+
   triggerFileInput(): void {
-    this.fileInput?.nativeElement?.click();
+    this.showUploadModal = true;
   }
+
+  closeUploadModal() {
+    this.showUploadModal = false;
+  }
+
+  handleFilePondSuccess(data: any) {
+    const { mediaUrl, mediaMeta } = data;
+    const msgType = mediaMeta.mimeType.startsWith('image/') ? 'image' : 'file';
+    const chatId = this.activeChat._id || this.activeChat.id;
+    const caption = this.newMessage.trim() || mediaMeta.filename;
+
+    // Add optimistic message
+    this.messages.push({
+      id: Date.now(),
+      sender: 'You',
+      avatar: '👤',
+      avatarColor: '#1e1e1e',
+      text: caption,
+      type: msgType,
+      mediaUrl,
+      mediaMeta,
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      isMe: true,
+    });
+    this.scrollToBottom();
+
+    if (this.activeChat.type !== 'bot') {
+      const isGroup = !this.activeChat.type || this.activeChat.type === 'group';
+
+      if (isGroup) {
+        this.groupService
+          .sendGroupMessage(chatId, caption, {
+            type: msgType,
+            mediaUrl,
+            mediaMeta,
+          })
+          .subscribe({
+            next: () => this.closeUploadModal(),
+            error: (err) => console.error('Failed to send media message', err),
+          });
+      } else {
+        this.socketService.emit('send_message', {
+          conversationId: chatId,
+          type: msgType,
+          content: caption,
+          mediaUrl,
+          mediaMeta,
+        });
+        this.closeUploadModal();
+      }
+    } else {
+      this.closeUploadModal();
+    }
+    
+    this.newMessage = '';
+  }
+
+  // legacy handle file upload
 
   handleFileUpload(event: Event): void {
     const input = event.target as HTMLInputElement;

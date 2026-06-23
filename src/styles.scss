@@ -544,3 +544,6 @@ mark.search-highlight {
     box-shadow: 0 0 10px rgba(251, 146, 60, 0.4);
   }
 }
+
+@import 'filepond/dist/filepond.min.css';
+@import 'filepond-plugin-image-preview/dist/filepond-plugin-image-preview.css';

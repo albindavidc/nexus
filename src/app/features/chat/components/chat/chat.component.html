@@ -170,8 +170,6 @@
   <!-- Input Footer Area -->
   <footer class="chat-footer">
     <div class="input-area-wrapper">
-      <!-- Hidden file input -->
-      <input type="file" #fileInput (change)="handleFileUpload($event)" accept="image/jpeg,image/png,image/webp,video/mp4,application/pdf,application/msword" hidden />
 
       <!-- Emoji Picker Panel -->
       <div class="emoji-picker-wrapper" *ngIf="showEmojiPicker" (click)="$event.stopPropagation()">
@@ -219,6 +217,25 @@
       <div class="footer-note" *ngIf="activeChat.type === 'bot'">AI responses are personalized to your fitness profile</div>
     </div>
   </footer>
+
+  <!-- File Upload Modal -->
+  <div class="create-group-modal" *ngIf="showUploadModal" (click)="closeUploadModal()">
+    <div class="modal-content" (click)="$event.stopPropagation()">
+      <h3>Upload Attachment</h3>
+      
+      <div class="filepond-wrapper">
+        <file-pond
+          #myPond
+          [options]="pondOptions"
+        ></file-pond>
+      </div>
+
+      <div class="modal-actions">
+        <button type="button" class="btn-cancel" (click)="closeUploadModal()">Close</button>
+      </div>
+    </div>
+  </div>
+
 </div>
 
 <ng-template #emptyState>

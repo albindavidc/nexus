@@ -388,14 +388,7 @@
 
     <!-- Input Area -->
     <div class="input-area-wrapper">
-      <!-- Hidden file input -->
-      <input
-        type="file"
-        #fileInput
-        (change)="handleFileUpload($event)"
-        accept="image/jpeg,image/png,image/webp,video/mp4,application/pdf,application/msword"
-        hidden
-      />
+      <!-- Hidden file input removed -->
 
       <!-- Emoji Picker Panel -->
       @if (showEmojiPicker) {
@@ -720,6 +713,27 @@
         </div>
       </div>
     }
+
+    <!-- File Upload Modal -->
+    @if (showUploadModal) {
+      <div class="create-group-modal" (click)="closeUploadModal()">
+        <div class="modal-content" (click)="$event.stopPropagation()">
+          <h3>Upload Attachment</h3>
+          
+          <div class="filepond-wrapper">
+            <file-pond
+              #myPond
+              [options]="pondOptions"
+            ></file-pond>
+          </div>
+
+          <div class="modal-actions">
+            <button type="button" class="btn-cancel" (click)="closeUploadModal()">Close</button>
+          </div>
+        </div>
+      </div>
+    }
+
   </main>
 } @else {
   <div class="empty-state">
