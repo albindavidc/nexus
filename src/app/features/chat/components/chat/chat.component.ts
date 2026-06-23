@@ -1,4 +1,4 @@
-import { Subject, takeUntil, debounceTime, distinctUntilChanged, filter, switchMap, catchError, of } from 'rxjs';
+import { Subject, takeUntil, debounceTime, distinctUntilChanged, filter, switchMap, catchError, of, Subscription } from 'rxjs';
 import {
   Component,
   Input,
@@ -47,7 +47,7 @@ export interface UIMessage {
   styleUrls: ['./chat.component.scss'],
 })
 export class ChatComponent implements OnChanges, OnDestroy, OnInit {
-  @Input() activeChat: any = null; // Can be a Conversation or a 'bot' chat object
+  @Input() activeChat: IConversation | any = null; // Can be a Conversation or a 'bot' chat object
   @Output() groupAction = new EventEmitter<unknown>();
 
   @ViewChild('scrollMe') private myScrollContainer!: ElementRef;
@@ -68,7 +68,7 @@ export class ChatComponent implements OnChanges, OnDestroy, OnInit {
   private socketService = inject(SocketService);
 
   private currentSubscribedChatId: string | null = null;
-  private socketSubscription: any = null;
+  private socketSubscription: Subscription | null = null;
 
   // searching feature
   searchResults: IMessage[] = [];
@@ -161,7 +161,7 @@ export class ChatComponent implements OnChanges, OnDestroy, OnInit {
 
   private scrollToMatch(index: number): void {
     if (!this.searchResults[index]) return;
-    const matchId = this.searchResults[index]._id || (this.searchResults[index] as any).id;
+    const matchId = this.searchResults[index]._id || (this.searchResults[index] as IMessage & { id?: string }).id;
     
     const targetElement = this.messageElements.find(
       (el) => el.nativeElement.id === `msg-${matchId}`

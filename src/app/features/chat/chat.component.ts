@@ -94,10 +94,6 @@ export class ChatComponent implements OnInit, OnDestroy {
           }) || [];
 
         this.conversations = apiConversations;
-
-        if (!this.activeDirectChat && this.conversations.length > 0) {
-          this.activeDirectChat = this.conversations[0];
-        }
       },
       error: (err) => {
         console.error('Failed to fetch direct conversations', err);
@@ -118,10 +114,6 @@ export class ChatComponent implements OnInit, OnDestroy {
             unreadCount: 0,
             isActive: true,
           })) || [];
-
-        if (!this.activeGroupChat && this.groups.length > 0) {
-          this.activeGroupChat = this.groups[0];
-        }
 
         if (targetId) {
           this.activeGroupChat =

@@ -32,6 +32,7 @@ import {
   takeUntil,
   catchError,
   of,
+  Subscription,
 } from 'rxjs';
 
 export interface UIChatMessage {
@@ -230,9 +231,9 @@ export class GroupChatComponent implements OnChanges, OnDestroy, OnInit {
   ];
 
   private currentSubscribedChatId: string | null = null;
-  private socketSubscription: any = null;
-  private groupSocketSubscription: any = null;
-  private presenceSubscription: any = null;
+  private socketSubscription: Subscription | null = null;
+  private groupSocketSubscription: Subscription | null = null;
+  private presenceSubscription: Subscription | null = null;
 
   //searching feature
   searchResults: IMessage[] = [];
@@ -292,7 +293,7 @@ export class GroupChatComponent implements OnChanges, OnDestroy, OnInit {
 
   private scrollToMatch(index: number): void {
     if (!this.searchResults[index]) return;
-    const matchId = this.searchResults[index]._id || (this.searchResults[index] as any).id;
+    const matchId = this.searchResults[index]._id || (this.searchResults[index] as IMessage & { id?: string }).id;
     
     const targetElement = this.messageElements.find(
       (el) => el.nativeElement.id === `msg-${matchId}`
@@ -324,9 +325,14 @@ export class GroupChatComponent implements OnChanges, OnDestroy, OnInit {
   participantSearchQuery = '';
   participantSearchResults: IUser[] = [];
   selectedNewParticipants: IUser[] = [];
+  existingParticipants: IUser[] = [];
   private participantSearchSubject = new Subject<string>();
 
   private destroy$ = new Subject<void>();
+
+  get currentUserId(): string {
+    return this.authService.currentUserId || '';
+  }
 
   //searching feature
   ngOnInit(): void {
@@ -641,12 +647,9 @@ export class GroupChatComponent implements OnChanges, OnDestroy, OnInit {
             this.updateParticipantStatus(userId, 'offline');
           });
 
-        this.presenceSubscription = {
-          unsubscribe: () => {
-            onlineSub.unsubscribe();
-            offlineSub.unsubscribe();
-          },
-        };
+        this.presenceSubscription = new Subscription();
+        this.presenceSubscription.add(onlineSub);
+        this.presenceSubscription.add(offlineSub);
       }
     }
   }
@@ -1065,10 +1068,30 @@ export class GroupChatComponent implements OnChanges, OnDestroy, OnInit {
       description: this.activeChat.description || '',
       theme: this.activeChat.theme || '#ff6600',
     };
+    this.existingParticipants = this.activeChat.members?.map((m: any) => m.user) || [];
     this.selectedNewParticipants = [];
     this.participantSearchQuery = '';
     this.participantSearchResults = [];
     this.isSettingsOpen = true;
+  }
+
+  removeExistingParticipant(user: IUser) {
+    if (!this.activeChat || this.activeChat.type === 'bot') return;
+    const chatId = this.activeChat._id || this.activeChat.id;
+    
+    if (confirm(`Are you sure you want to remove ${user.username} from the group?`)) {
+      this.groupService.removeMember(chatId, user._id).subscribe({
+        next: () => {
+          this.existingParticipants = this.existingParticipants.filter(p => p._id !== user._id);
+          if (this.activeChat.members) {
+            this.activeChat.members = this.activeChat.members.filter(
+              (m: any) => (m.user?._id || m.user?.id || m.user) !== user._id
+            );
+          }
+        },
+        error: (err) => console.error('Failed to remove member', err)
+      });
+    }
   }
 
   closeGroupSettings() {

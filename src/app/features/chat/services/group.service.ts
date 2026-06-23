@@ -126,4 +126,14 @@ export class GroupService {
       { groupId, userIds },
     );
   }
+
+  removeMember(
+    groupId: string,
+    targetUserId: string,
+  ): Observable<ISocketResponse<{ group: IGroup }>> {
+    return this.socketService.emitWithAck<ISocketResponse<{ group: IGroup }>>(
+      'group:remove_member',
+      { groupId, targetUserId },
+    );
+  }
 }

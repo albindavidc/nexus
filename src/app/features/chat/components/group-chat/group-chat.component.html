@@ -598,14 +598,30 @@
             </div>
 
             <div class="form-group mb-2">
-              <label class="form-label">Add Participants</label>
+              <label class="form-label">Participants</label>
 
-              <!-- Selected Participants Pills -->
+              <!-- Existing Participants Pills -->
+              @if (existingParticipants.length > 0) {
+                <div class="selected-participants mb-1">
+                  @for (p of existingParticipants; track p._id) {
+                    <span class="participant-pill existing-member">
+                      {{ p.username }}
+                      @if (p._id !== currentUserId) {
+                        <button class="remove-btn" (click)="removeExistingParticipant(p)">
+                          ✕
+                        </button>
+                      }
+                    </span>
+                  }
+                </div>
+              }
+
+              <!-- Selected New Participants Pills -->
               @if (selectedNewParticipants.length > 0) {
                 <div class="selected-participants mb-1">
                   @for (p of selectedNewParticipants; track p._id) {
                     <span class="participant-pill">
-                      {{ p.username }}
+                      {{ p.username }} (New)
                       <button class="remove-btn" (click)="removeParticipant(p)">
                         ✕
                       </button>
