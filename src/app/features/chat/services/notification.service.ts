@@ -34,13 +34,13 @@ export class NotificationService {
     });
   }
 
-  markAsRead(id: string): Observable<any> {
+  markAsRead(id: string): Observable<unknown> {
     return this.http.put(`${this.apiUrl}/${id}/read`, {}, {
       withCredentials: true
     });
   }
 
-  markAllAsRead(): Observable<any> {
+  markAllAsRead(): Observable<unknown> {
     return this.http.put(`${this.apiUrl}/read-all`, {}, {
       withCredentials: true
     });

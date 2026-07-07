@@ -46,8 +46,8 @@ export class GroupService {
 
   createGroup(
     data: CreateGroupDto,
-  ): Observable<any> {
-    return this.http.post<any>(`${this.apiUrl}/group`, data, {
+  ): Observable<ISocketResponse<{ conversation: IGroup }>> {
+    return this.http.post<ISocketResponse<{ conversation: IGroup }>>(`${this.apiUrl}/group`, data, {
       withCredentials: true,
     });
   }

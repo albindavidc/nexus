@@ -4,8 +4,12 @@ import { SocketService } from '../../../core/services/socket.service';
 import { ISocketResponse } from '../models/chat.models';
 
 export interface ChatBotMessage {
+  _id?: string;
   role: 'user' | 'assistant';
-  message: string;
+  message?: string;
+  content?: string;
+  createdAt?: string;
+  timestamp?: string;
 }
 
 export interface ChatBotRequest {

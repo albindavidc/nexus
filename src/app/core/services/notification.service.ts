@@ -33,7 +33,7 @@ export class NotificationService {
           withCredentials: true,
         }),
       ),
-      catchError((error) => {
+      catchError(() => {
         return EMPTY;
       }),
     );
@@ -48,7 +48,7 @@ export class NotificationService {
           withCredentials: true,
         }),
       ),
-      catchError((error) => {
+      catchError(() => {
         return EMPTY;
       }),
     );

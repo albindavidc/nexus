@@ -6,15 +6,26 @@ import {
   ViewChild,
   HostListener,
 } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { FormsModule } from '@angular/forms';
 import { MarkdownPipe } from '../../../../shared/pipes/markdown.pipe';
-import { ChatbotService } from '../../services/chatbot.service';
+import { ChatBotMessage, ChatbotService } from '../../services/chatbot.service';
+
+interface IAIMessage {
+  id: string | number;
+  sender: string;
+  avatar: string;
+  avatarColor: string;
+  text: string;
+  time: string;
+  isMe: boolean;
+  hasPerformanceCard?: boolean;
+}
 
 @Component({
   selector: 'app-ai-chat',
   standalone: true,
-  imports: [CommonModule, FormsModule, MarkdownPipe],
+  imports: [FormsModule, MarkdownPipe],
   templateUrl: './ai-chat.component.html',
   styleUrls: ['./ai-chat.component.scss'],
 })
@@ -24,7 +35,7 @@ export class AIChatComponent implements OnInit {
   menuOpen = false;
   newMessage = '';
   isTyping = false;
-  messages: any[] = [];
+  messages: IAIMessage[] = [];
 
   private chatbotService = inject(ChatbotService);
 
@@ -44,14 +55,14 @@ export class AIChatComponent implements OnInit {
     this.chatbotService.getHistory().subscribe({
       next: (res) => {
         const history = res.data?.history || [];
-        this.messages = history.map((m: any) => ({
+        this.messages = history.map((m: ChatBotMessage) => ({
           id: m._id || Date.now() + Math.random(),
           sender: m.role === 'user' ? 'You' : 'Nexus AI',
           avatar: m.role === 'user' ? '👤' : '🤖',
           avatarColor: m.role === 'user' ? '#1e1e1e' : '#ff5722',
-          text: m.content,
-          time: m.createdAt
-            ? new Date(m.createdAt).toLocaleTimeString([], {
+          text: m.content || m.message || '',
+          time: (m.createdAt || m.timestamp)
+            ? new Date((m.createdAt || m.timestamp) as string).toLocaleTimeString([], {
                 hour: '2-digit',
                 minute: '2-digit',
               })

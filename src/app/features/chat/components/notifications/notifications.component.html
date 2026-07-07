@@ -2,9 +2,11 @@
   <div class="header-glass">
     <h2>Notifications</h2>
     <div class="header-actions">
-      <button class="btn-mark-all" (click)="markAllAsRead()" *ngIf="notifications.length > 0">
-        Mark all as read
-      </button>
+      @if (notifications.length > 0) {
+        <button class="btn-mark-all" (click)="markAllAsRead()">
+          Mark all as read
+        </button>
+      }
     </div>
   </div>
 
@@ -27,11 +29,13 @@
     } @else {
       <div class="notifications-list">
         @for (notification of notifications; track notification._id) {
-          <div 
-            class="notification-card" 
+          <div
+            class="notification-card"
+            tabindex="0"
             [class.unread]="!notification.isRead"
             (click)="markAsRead(notification)"
-          >
+            (keydown.enter)="markAsRead(notification)"
+            >
             <div class="notification-icon">
               {{ getIconForType(notification.type) }}
             </div>

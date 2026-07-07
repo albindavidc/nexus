@@ -1,5 +1,5 @@
 import { Component, EventEmitter, Input, Output, inject, OnChanges, SimpleChanges, OnInit, OnDestroy } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { FormsModule } from '@angular/forms';
 import { GroupService } from '../../services/group.service';
 import { ChatService } from '../../services/chat.service';
@@ -39,14 +39,14 @@ export interface UISearchResult {
 @Component({
   selector: 'app-chat-sidebar',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [FormsModule],
   templateUrl: './chat-sidebar.component.html',
   styleUrls: ['./chat-sidebar.component.scss']
 })
 export class ChatSidebarComponent implements OnChanges, OnInit, OnDestroy {
   @Input() groups: UIGroupChat[] = [];
   @Input() conversations: UIDirectChat[] = [];
-  @Output() selectChat = new EventEmitter<unknown>();
+  @Output() selectChat = new EventEmitter<UIDirectChat | UIGroupChat | UISearchResult | { reloadGroups: boolean; chat?: UIDirectChat | UIGroupChat | UISearchResult }>();
   @Output() tabChange = new EventEmitter<string>();
   @Output() presenceChange = new EventEmitter<void>();
 
@@ -86,7 +86,7 @@ export class ChatSidebarComponent implements OnChanges, OnInit, OnDestroy {
   private socketService = inject(SocketService);
   authService = inject(AuthService);
 
-  private presenceSubscription: any = null;
+  private presenceSubscription: { unsubscribe: () => void } | null = null;
   private searchSubject = new Subject<string>();
 
   get currentUser() {
@@ -120,7 +120,7 @@ export class ChatSidebarComponent implements OnChanges, OnInit, OnDestroy {
         return this.chatService.searchUsers(query);
       })
     ).subscribe({
-      next: (res: any) => {
+      next: (res: { data?: { users?: IUser[] } }) => {
         if (res && res.data) {
           const myId = this.authService.currentUserId;
           this.participantSearchResults = (res.data.users || []).filter(
@@ -139,7 +139,7 @@ export class ChatSidebarComponent implements OnChanges, OnInit, OnDestroy {
       this.updateUserOnlineStatus(userId, false);
     });
 
-    const notifSub = this.socketService.onEvent<any>('new_notification').subscribe(() => {
+    const notifSub = this.socketService.onEvent<unknown>('new_notification').subscribe(() => {
       if (this.activeTab !== 'NOTIFICATIONS') {
         this.hasUnreadNotifications = true;
       }
@@ -250,7 +250,7 @@ export class ChatSidebarComponent implements OnChanges, OnInit, OnDestroy {
   onSelectChat(group: UIDirectChat | UIGroupChat | UISearchResult) {
     if (this.isSearching && this.activeTab === 'CHAT') {
        // Start a direct conversation if clicking a user
-       this.chatService.startDirectConversation(group._id || (group as any).id || '').subscribe({
+       this.chatService.startDirectConversation(String(group._id || (group as UIDirectChat).id || '')).subscribe({
           next: (res) => {
              const conv = res.data?.conversation || group;
              this.activeDirectChatId = conv._id || '';
@@ -284,11 +284,11 @@ export class ChatSidebarComponent implements OnChanges, OnInit, OnDestroy {
   performSearch() {
     if (this.activeTab === 'CHAT') {
        this.chatService.searchUsers(this.searchQuery).subscribe({
-          next: (res: any) => {
+          next: (res: { data?: { users?: IUser[] } }) => {
              this.searchResults = res.data?.users?.map((u: IUser) => ({
                  ...u,
                  name: u.username,
-                 description: `${(u as any).firstName || ''} ${(u as any).lastName || ''}`,
+                 description: `${u.firstName || ''} ${u.lastName || ''}`,
                  avatarColor: '#1e1e1e',
                  icon: '👤',
                  type: 'user'
@@ -312,7 +312,7 @@ export class ChatSidebarComponent implements OnChanges, OnInit, OnDestroy {
   joinGroup(group: UISearchResult, event: Event) {
     event.stopPropagation();
     this.groupService.joinGroup(group._id || '').subscribe({
-       next: (res: any) => {
+       next: (res: { data?: { group?: IGroup } }) => {
           this.isSearching = false;
           this.searchQuery = '';
           this.selectChat.emit({ reloadGroups: true, chat: res.data?.group || group });
@@ -332,10 +332,10 @@ export class ChatSidebarComponent implements OnChanges, OnInit, OnDestroy {
       return;
     }
     
-    const payload: any = { ...this.newGroup };
+    const payload = { ...this.newGroup };
 
     this.groupService.createGroup(payload).subscribe({
-       next: (res: any) => {
+       next: (res: { data?: { conversation?: IGroup } }) => {
           this.isCreatingGroup = false;
           this.newGroup = { name: '', description: '', participantIds: [], theme: '#ff6600' };
           this.selectedParticipants = [];

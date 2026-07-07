@@ -68,8 +68,8 @@ export class ChatService {
 
   getMessages(
     conversationId: string,
-    page: number = 1,
-    limit: number = 50,
+    page = 1,
+    limit = 50,
   ): Observable<ISocketResponse<{ messages: IMessage[] }>> {
     return this.socketService.emitWithAck<
       ISocketResponse<{ messages: IMessage[] }>

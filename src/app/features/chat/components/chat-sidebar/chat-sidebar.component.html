@@ -58,7 +58,7 @@
   <div class="chat-list">
     @if(isSearching) {
       @for (result of searchResults; track result.id || result._id) {
-        <div class="chat-item" (click)="onSelectChat(result)">
+        <div class="chat-item" tabindex="0" (click)="onSelectChat(result)" (keydown.enter)="onSelectChat(result)">
           <div class="avatar-wrapper">
             <div class="avatar" [style.backgroundColor]="result.avatarColor || '#333'">
               <span class="avatar-emoji">{{ result.icon || '👥' }}</span>
@@ -82,8 +82,10 @@
         @for (chat of conversations; track chat.id || chat._id) {
           <div 
             class="chat-item" 
+            tabindex="0"
             [class.active]="activeDirectChatId === (chat.id || chat._id)"
-            (click)="onSelectChat(chat)">
+            (click)="onSelectChat(chat)"
+            (keydown.enter)="onSelectChat(chat)">
             
             <div class="avatar-wrapper">
               <div class="avatar" [style.backgroundColor]="chat.avatarColor || '#333'">
@@ -112,8 +114,10 @@
         @for (group of groups; track group.id || group._id) {
           <div 
             class="chat-item" 
+            tabindex="0"
             [class.active]="activeGroupChatId === (group.id || group._id)"
-            (click)="onSelectChat(group)">
+            (click)="onSelectChat(group)"
+            (keydown.enter)="onSelectChat(group)">
             
             <div class="avatar-wrapper">
               <div class="avatar" [style.backgroundColor]="group.avatarColor || '#333'">
@@ -165,15 +169,15 @@
       <div class="modal-content">
         <h3>Create Group</h3>
         <div class="form-group mb-2">
-          <label class="form-label">Group Name</label>
-          <input type="text" [(ngModel)]="newGroup.name" placeholder="E.g., Morning Runners" class="form-control">
+          <label class="form-label" for="newGroupName">Group Name</label>
+          <input id="newGroupName" type="text" [(ngModel)]="newGroup.name" placeholder="E.g., Morning Runners" class="form-control">
         </div>
         <div class="form-group mb-2">
-          <label class="form-label">Description</label>
-          <input type="text" [(ngModel)]="newGroup.description" placeholder="What's this group about?" class="form-control">
+          <label class="form-label" for="newGroupDesc">Description</label>
+          <input id="newGroupDesc" type="text" [(ngModel)]="newGroup.description" placeholder="What's this group about?" class="form-control">
         </div>
         <div class="form-group mb-2">
-          <label class="form-label">Participants</label>
+          <label class="form-label" for="participantSearchInput">Participants</label>
           
           <!-- Selected Participants Pills -->
           @if (selectedParticipants.length > 0) {
@@ -190,6 +194,7 @@
           <!-- Participant Search Input -->
           <div class="participant-search-box">
             <input 
+              id="participantSearchInput"
               type="text" 
               class="form-control" 
               placeholder="Search users to add..." 
@@ -201,7 +206,7 @@
             @if (participantSearchResults.length > 0) {
               <div class="search-dropdown">
                 @for (user of participantSearchResults; track user._id) {
-                  <div class="dropdown-item" (click)="addParticipant(user)">
+                  <div class="dropdown-item" tabindex="0" (click)="addParticipant(user)" (keydown.enter)="addParticipant(user)">
                     <div class="user-info">
                       <span class="user-avatar">{{ user.avatar || user.username.charAt(0) || '👤' }}</span>
                       <span class="user-name">{{ user.username }}</span>
@@ -215,7 +220,7 @@
         </div>
         
         <div class="theme-selection mb-2">
-          <label class="form-label">Select Theme:</label>
+          <span class="form-label">Select Theme:</span>
           <div class="theme-options">
             @for (theme of availableThemes; track theme.value) {
               <button 

@@ -1,5 +1,5 @@
 import { Component, inject, OnInit, OnDestroy } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 
 import { SocketService } from '../../core/services/socket.service';
 import { ChatSidebarComponent } from './components/chat-sidebar/chat-sidebar.component';
@@ -10,8 +10,10 @@ import { AuthService } from '../auth/services/auth.service';
 import { GroupService } from './services/group.service';
 import { ChatService } from './services/chat.service';
 import { IConversation, IGroup } from './models/chat.models';
+import { UISearchResult } from './components/chat-sidebar/chat-sidebar.component';
 
 export interface UIDirectChat extends IConversation {
+  id?: string | number;
   avatarColor?: string;
   icon?: string;
   time?: string;
@@ -19,6 +21,7 @@ export interface UIDirectChat extends IConversation {
 }
 
 export interface UIGroupChat extends IGroup {
+  id?: string | number;
   avatarColor?: string;
   icon?: string;
   time?: string;
@@ -30,13 +33,12 @@ import { NotificationsComponent } from './components/notifications/notifications
   selector: 'app-chat',
   standalone: true,
   imports: [
-    CommonModule,
     ChatSidebarComponent,
     GroupChatComponent,
     DirectChatComponent,
     AIChatComponent,
-    NotificationsComponent,
-  ],
+    NotificationsComponent
+],
   templateUrl: './chat.component.html',
   styleUrl: './chat.component.scss',
 })
@@ -73,8 +75,8 @@ export class ChatComponent implements OnInit, OnDestroy {
         const currentUserId = this.authService.user()?._id;
         const apiConversations: UIDirectChat[] =
           res.data?.conversations?.map((c: IConversation) => {
-            const otherParticipant: any = c.participants?.find((p: any) => {
-              const pId = p._id || p;
+            const otherParticipant = c.participants?.find((p) => {
+              const pId = p._id || (p as unknown as string);
               return pId !== currentUserId;
             });
 
@@ -143,30 +145,30 @@ export class ChatComponent implements OnInit, OnDestroy {
     }
   }
 
-  onChatSelected(chat: any) {
-    if (chat && chat.reloadGroups) {
+  onChatSelected(chat: UIDirectChat | UIGroupChat | UISearchResult | { reloadGroups: boolean; chat?: UIDirectChat | UIGroupChat | UISearchResult }) {
+    if (chat && 'reloadGroups' in chat && chat.reloadGroups) {
       const targetId = chat.chat?._id || chat.chat?.id;
-      this.fetchGroups(targetId);
+      this.fetchGroups(targetId?.toString());
       this.fetchConversations();
     } else {
       if (this.currentTab === 'CHAT') {
-        this.activeDirectChat = chat;
+        this.activeDirectChat = chat as UIDirectChat;
       } else {
-        this.activeGroupChat = chat;
+        this.activeGroupChat = chat as UIGroupChat;
       }
     }
   }
 
   onPresenceChange() {
     if (this.activeDirectChat) {
-      this.activeDirectChat = { ...this.activeDirectChat } as any;
+      this.activeDirectChat = { ...this.activeDirectChat } as UIDirectChat;
     }
     if (this.activeGroupChat) {
-      this.activeGroupChat = { ...this.activeGroupChat } as any;
+      this.activeGroupChat = { ...this.activeGroupChat } as UIGroupChat;
     }
   }
 
-  onGroupAction(event: any) {
+  onGroupAction(event: { action: string; groupId?: string }) {
     if (event.action === 'update') {
       this.fetchGroups(event.groupId);
     } else if (event.action === 'delete' || event.action === 'leave') {

@@ -16,6 +16,9 @@ const USER_STORAGE_KEY = 'nexus_user';
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {
+  private http = inject(HttpClient);
+  private router = inject(Router);
+
   private readonly apiUrl = `${environment.apiUrl}/auth`;
 
   // ─── Signals (Reactive State) ──────────────────────────────
@@ -34,19 +37,17 @@ export class AuthService {
 
   // ─── Convenience getter: always returns a normalised _id string ──
   get currentUserId(): string {
-    const u = this._user() as any;
+    const u = this._user() as (User & { id?: string }) | null;
     if (!u) return '';
     return (u._id ?? u.id ?? '').toString();
   }
-
-  constructor(private http: HttpClient, private router: Router) {}
 
   // ─── Load from localStorage ────────────────────────────────
   private _loadUserFromStorage(): User | null {
     try {
       const raw = localStorage.getItem(USER_STORAGE_KEY);
       if (!raw) return null;
-      const parsed = JSON.parse(raw) as any;
+      const parsed = JSON.parse(raw) as (User & { id?: string });
       // Normalise: always ensure _id is set
       if (!parsed._id && parsed.id) parsed._id = parsed.id;
       return parsed as User;
@@ -56,7 +57,7 @@ export class AuthService {
   }
 
   // ─── Persist to localStorage ───────────────────────────────
-  private _saveUser(user: any): void {
+  private _saveUser(user: User & { id?: string }): void {
     // Normalise backend shapes: some responses have "id" instead of "_id"
     if (!user._id && user.id) user._id = user.id;
     localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(user));
@@ -79,7 +80,7 @@ export class AuthService {
         withCredentials: true,
       })
       .pipe(
-        tap((res) => {
+        tap(() => {
           this._isLoading.set(false);
           this._pendingEmail.set(data.email!);
           this.router.navigate(['/auth/verify-otp']);
@@ -178,7 +179,7 @@ export class AuthService {
   }
 
   // ─── Logout ────────────────────────────────────────────────
-  logout(): Observable<any> {
+  logout(): Observable<unknown> {
     return this.http
       .post(`${this.apiUrl}/logout`, {}, { withCredentials: true })
       .pipe(

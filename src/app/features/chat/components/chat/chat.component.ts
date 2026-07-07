@@ -16,14 +16,14 @@ import {
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { ChatbotService } from '../../services/chatbot.service';
+import { ChatBotMessage, ChatbotService } from '../../services/chatbot.service';
 import { ChatService } from '../../services/chat.service';
 import { AuthService } from '../../../auth/services/auth.service';
 import { GroupService } from '../../services/group.service';
 import { SocketService } from '../../../../core/services/socket.service';
 import { MarkdownPipe } from '../../../../shared/pipes/markdown.pipe';
 import { environment } from '../../../../../environments/environment';
-import { IConversation, IMessage, IUser } from '../../models/chat.models';
+import { IConversation, IMessage, IMediaMeta, IUser } from '../../models/chat.models';
 
 export interface UIMessage {
   id: string | number;
@@ -33,7 +33,7 @@ export interface UIMessage {
   text: string;
   type?: string;
   mediaUrl?: string;
-  mediaMeta?: any;
+  mediaMeta?: IMediaMeta;
   time: string;
   isMe: boolean;
   senderId?: string;
@@ -51,6 +51,16 @@ registerPlugin(
   FilePondPluginFileValidateSize
 );
 
+export type ActiveChatInput = Partial<Omit<IConversation, 'type'>> & {
+  avatarColor?: string;
+  icon?: string;
+  isOnline?: boolean;
+  type?: string;
+  id?: string | number;
+  name?: string;
+  description?: string;
+};
+
 @Component({
   selector: 'app-direct-chat',
   standalone: true,
@@ -59,8 +69,8 @@ registerPlugin(
   styleUrls: ['./chat.component.scss'],
 })
 export class ChatComponent implements OnChanges, OnDestroy, OnInit {
-  @Input() activeChat: IConversation | any = null; // Can be a Conversation or a 'bot' chat object
-  @Output() groupAction = new EventEmitter<unknown>();
+  @Input() activeChat: ActiveChatInput | null = null; // Can be a Conversation or a 'bot' chat object
+  @Output() groupAction = new EventEmitter<{ action: string; groupId?: string; group?: IConversation }>();
 
   @ViewChild('scrollMe') private myScrollContainer!: ElementRef;
   @ViewChild('messageTextarea') messageTextarea!: ElementRef<HTMLTextAreaElement>;
@@ -225,7 +235,7 @@ export class ChatComponent implements OnChanges, OnDestroy, OnInit {
           return true;
         }),
         switchMap((query) => {
-          const chatId = this.activeChat._id || this.activeChat.id;
+          const chatId = (this.activeChat?._id || this.activeChat?.id || '').toString();
           return this.chatService.searchMessagesInConversation(
             chatId,
             query,
@@ -270,7 +280,7 @@ export class ChatComponent implements OnChanges, OnDestroy, OnInit {
       if (this.activeChat.type === 'bot') {
         this.fetchBotHistory();
       } else {
-        const chatId = this.activeChat._id || this.activeChat.id;
+        const chatId = ((this.activeChat._id || this.activeChat.id || '').toString()).toString();
         this.currentSubscribedChatId = chatId;
         this.fetchPartnerHistory();
 
@@ -280,9 +290,9 @@ export class ChatComponent implements OnChanges, OnDestroy, OnInit {
           .onEvent<IMessage>('new_message')
           .subscribe({
             next: (m: IMessage) => {
-              const msgConvObj = m.conversation as any;
+              const msgConvObj = m.conversation as IConversation | string;
               const msgConvId = (
-                msgConvObj?._id ||
+                (typeof msgConvObj === 'object' ? msgConvObj?._id : undefined) ||
                 msgConvObj ||
                 ''
               ).toString();
@@ -367,8 +377,9 @@ export class ChatComponent implements OnChanges, OnDestroy, OnInit {
   }
 
   fetchPartnerHistory() {
+    if (!this.activeChat) return;
     this.messages = [];
-    const chatId = this.activeChat._id || this.activeChat.id;
+    const chatId = ((this.activeChat._id || this.activeChat.id || '').toString()).toString();
 
     this.chatService.getMessages(chatId).subscribe({
       next: (res) => {
@@ -410,22 +421,24 @@ export class ChatComponent implements OnChanges, OnDestroy, OnInit {
     this.chatbotService.getHistory().subscribe({
       next: (res) => {
         const history = res.data?.history || [];
-        this.messages = history.map((m: any) => ({
+        this.messages = history.map((m: ChatBotMessage) => ({
           id: m._id || Date.now() + Math.random(),
           sender: m.role === 'user' ? 'You' : 'Nexus AI',
           avatar: m.role === 'user' ? '👤' : '🤖',
           avatarColor: m.role === 'user' ? '#1e1e1e' : '#ff5722',
-          text: m.message,
-          time: m.timestamp
-            ? new Date(m.timestamp).toLocaleTimeString([], {
+          text: m.content || m.message || '',
+          time: (m.timestamp || m.createdAt)
+            ? new Date((m.timestamp || m.createdAt) as string).toLocaleTimeString([], {
                 hour: '2-digit',
                 minute: '2-digit',
               })
             : 'Now',
           isMe: m.role === 'user',
           hasPerformanceCard:
-            m.message.toLowerCase().includes('recommend') ||
-            m.message.toLowerCase().includes('stats'),
+            m.message?.toLowerCase().includes('recommend') ||
+            m.message?.toLowerCase().includes('stats') ||
+            m.content?.toLowerCase().includes('recommend') ||
+            m.content?.toLowerCase().includes('stats'),
         }));
 
         if (this.messages.length === 0) {
@@ -458,7 +471,7 @@ export class ChatComponent implements OnChanges, OnDestroy, OnInit {
   }
 
   sendMessage() {
-    if (!this.newMessage.trim()) return;
+    if (!this.newMessage.trim() || !this.activeChat) return;
 
     const userText = this.newMessage;
 
@@ -481,7 +494,7 @@ export class ChatComponent implements OnChanges, OnDestroy, OnInit {
     if (this.activeChat.type === 'bot') {
       this.isTyping = true;
       this.chatbotService
-        .chat({ conversationId: this.activeChat.id, message: userText })
+        .chat({ conversationId: (this.activeChat._id || this.activeChat.id || '').toString(), message: userText })
         .subscribe({
           next: (res) => {
             this.isTyping = false;
@@ -512,7 +525,7 @@ export class ChatComponent implements OnChanges, OnDestroy, OnInit {
           },
         });
     } else {
-      const chatId = this.activeChat._id || this.activeChat.id;
+      const chatId = ((this.activeChat._id || this.activeChat.id || '').toString()).toString();
 
       this.chatService.sendMessage(chatId, userText).subscribe({
         next: () => {
@@ -614,7 +627,7 @@ export class ChatComponent implements OnChanges, OnDestroy, OnInit {
       url: `${environment.apiUrl}/chat/upload`,
       process: {
         withCredentials: true,
-        onload: (response: any) => {
+        onload: (response: string) => {
           try {
             const res = JSON.parse(response);
             if (res.data) {
@@ -637,10 +650,11 @@ export class ChatComponent implements OnChanges, OnDestroy, OnInit {
     this.showUploadModal = false;
   }
 
-  handleFilePondSuccess(data: any) {
+  handleFilePondSuccess(data: { mediaUrl: string; mediaMeta: IMediaMeta }) {
     const { mediaUrl, mediaMeta } = data;
     const msgType = mediaMeta.mimeType.startsWith('image/') ? 'image' : 'file';
-    const chatId = this.activeChat._id || this.activeChat.id;
+    if (!this.activeChat) return;
+    const chatId = ((this.activeChat._id || this.activeChat.id || '').toString()).toString();
 
     // Add optimistic message
     this.messages.push({
@@ -665,7 +679,7 @@ export class ChatComponent implements OnChanges, OnDestroy, OnInit {
       next: () => {
         this.closeUploadModal();
       },
-      error: (err: any) => {
+      error: (err: Error) => {
         console.error('Failed to send file message', err);
         this.closeUploadModal();
       }
@@ -692,8 +706,8 @@ export class ChatComponent implements OnChanges, OnDestroy, OnInit {
   private extractSenderId(sender: unknown): string {
     if (!sender) return '';
     if (typeof sender === 'string') return sender.trim();
-    const s = sender as any;
-    return (s._id ?? s.id ?? '').toString().trim();
+    const s = sender as IUser;
+    return (s._id ?? '').toString().trim();
   }
 
   isMe(msg: UIMessage): boolean {
@@ -745,7 +759,7 @@ export class ChatComponent implements OnChanges, OnDestroy, OnInit {
       if (
         confirm('Are you sure you want to clear this conversation history?')
       ) {
-        const chatId = this.activeChat._id || this.activeChat.id;
+        const chatId = ((this.activeChat._id || this.activeChat.id || '').toString()).toString();
         this.chatService.clearConversation(chatId).subscribe({
           next: () => {
             this.messages = [];

@@ -1,13 +1,14 @@
 import { Component, inject, signal } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { ReactiveFormsModule, FormBuilder, Validators } from '@angular/forms';
 import { RouterLink, Router } from '@angular/router';
 import { AuthService } from '../../services/auth.service';
+import { LoginRequest } from '../../models/auth.models';
 
 @Component({
   selector: 'app-login',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, RouterLink],
+  imports: [ReactiveFormsModule, RouterLink],
   templateUrl: './login.component.html',
   styleUrls: ['./login.component.scss']
 })
@@ -51,6 +52,6 @@ export class LoginComponent {
       return;
     }
     
-    this.authService.login(this.loginForm.value as any).subscribe();
+    this.authService.login(this.loginForm.value as LoginRequest).subscribe();
   }
 }

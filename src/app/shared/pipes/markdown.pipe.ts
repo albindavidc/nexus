@@ -1,4 +1,4 @@
-import { Pipe, PipeTransform } from '@angular/core';
+import { Pipe, PipeTransform, inject } from '@angular/core';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
@@ -8,9 +8,10 @@ import DOMPurify from 'dompurify';
   standalone: true,
 })
 export class MarkdownPipe implements PipeTransform {
-  constructor(private sanitizer: DomSanitizer) {}
+  private sanitizer = inject(DomSanitizer);
 
-  transform(value: string | null | undefined, searchQuery?: string, isActive: boolean = false): SafeHtml {
+
+  transform(value: string | null | undefined, searchQuery?: string, isActive = false): SafeHtml {
     if (!value) return '';
     let parsedHtml = marked.parse(value) as string;
     

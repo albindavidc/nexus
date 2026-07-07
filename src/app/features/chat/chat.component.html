@@ -7,25 +7,25 @@
     (presenceChange)="onPresenceChange()"
   ></app-chat-sidebar>
 
-  <ng-container *ngIf="currentTab === 'CHAT'">
+  @if (currentTab === 'CHAT') {
     <app-direct-chat
       [activeChat]="activeDirectChat"
       (groupAction)="onGroupAction($event)"
     ></app-direct-chat>
-  </ng-container>
+  }
 
-  <ng-container *ngIf="currentTab === 'GROUPS'">
+  @if (currentTab === 'GROUPS') {
     <app-group-chat
       [activeChat]="activeGroupChat"
       (groupAction)="onGroupAction($event)"
     ></app-group-chat>
-  </ng-container>
+  }
 
-  <ng-container *ngIf="currentTab === 'AI COACH'">
+  @if (currentTab === 'AI COACH') {
     <app-ai-chat></app-ai-chat>
-  </ng-container>
+  }
 
-  <ng-container *ngIf="currentTab === 'NOTIFICATIONS'">
+  @if (currentTab === 'NOTIFICATIONS') {
     <app-notifications></app-notifications>
-  </ng-container>
+  }
 </div>

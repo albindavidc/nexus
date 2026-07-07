@@ -292,8 +292,7 @@
                         }}</span>
                         @if (msg.mediaMeta?.size) {
                           <span class="file-size"
-                            >{{
-                              msg.mediaMeta.size / 1024 | number: "1.0-0"
+                            >{{ (msg.mediaMeta!.size || 0) / 1024 | number: "1.0-0"
                             }}
                             KB</span
                           >
@@ -392,7 +391,7 @@
 
       <!-- Emoji Picker Panel -->
       @if (showEmojiPicker) {
-        <div class="emoji-picker-wrapper" (click)="$event.stopPropagation()">
+        <div class="emoji-picker-wrapper" tabindex="0" (click)="$event.stopPropagation()" (keydown.enter)="$event.stopPropagation()">
           <div class="emoji-picker">
             @for (category of emojiCategories; track category.name) {
               <div class="emoji-category">
@@ -572,8 +571,9 @@
 
           @if (isGroupAdminOrOwner()) {
             <div class="form-group mb-2">
-              <label class="form-label">Group Name</label>
+              <label class="form-label" for="editGroupName">Group Name</label>
               <input
+                id="editGroupName"
                 type="text"
                 [(ngModel)]="editGroupData.name"
                 placeholder="Group Name"
@@ -581,8 +581,9 @@
               />
             </div>
             <div class="form-group mb-2">
-              <label class="form-label">Description</label>
+              <label class="form-label" for="editGroupDesc">Description</label>
               <input
+                id="editGroupDesc"
                 type="text"
                 [(ngModel)]="editGroupData.description"
                 placeholder="Description"
@@ -591,7 +592,7 @@
             </div>
 
             <div class="form-group mb-2">
-              <label class="form-label">Participants</label>
+              <label class="form-label" for="groupParticipantSearch">Participants</label>
 
               <!-- Existing Participants Pills -->
               @if (existingParticipants.length > 0) {
@@ -626,6 +627,7 @@
               <!-- Participant Search Input -->
               <div class="participant-search-box">
                 <input
+                  id="groupParticipantSearch"
                   type="text"
                   class="form-control"
                   placeholder="Search users to add..."
@@ -637,7 +639,7 @@
                 @if (participantSearchResults.length > 0) {
                   <div class="search-dropdown">
                     @for (user of participantSearchResults; track user._id) {
-                      <div class="dropdown-item" (click)="addParticipant(user)">
+                      <div class="dropdown-item" tabindex="0" (click)="addParticipant(user)" (keydown.enter)="addParticipant(user)">
                         <div class="user-info">
                           <span class="user-avatar">{{
                             user.avatar || user.username.charAt(0) || "👤"
@@ -653,7 +655,7 @@
             </div>
 
             <div class="theme-selection mb-2">
-              <label class="form-label">Select Theme Color:</label>
+              <span class="form-label">Select Theme Color:</span>
               <div class="theme-options">
                 @for (theme of availableThemes; track theme.value) {
                   <button
@@ -675,8 +677,9 @@
               settings.
             </p>
             <div class="form-group mb-2">
-              <label class="form-label">Group Name</label>
+              <label class="form-label" for="readGroupName">Group Name</label>
               <input
+                id="readGroupName"
                 type="text"
                 [value]="activeChat.name"
                 disabled
@@ -684,8 +687,9 @@
               />
             </div>
             <div class="form-group mb-2">
-              <label class="form-label">Description</label>
+              <label class="form-label" for="readGroupDesc">Description</label>
               <input
+                id="readGroupDesc"
                 type="text"
                 [value]="activeChat.description"
                 disabled
@@ -716,8 +720,8 @@
 
     <!-- File Upload Modal -->
     @if (showUploadModal) {
-      <div class="create-group-modal" (click)="closeUploadModal()">
-        <div class="modal-content" (click)="$event.stopPropagation()">
+      <div class="create-group-modal" tabindex="0" (click)="closeUploadModal()" (keydown.enter)="closeUploadModal()">
+        <div class="modal-content" tabindex="0" (click)="$event.stopPropagation()" (keydown.enter)="$event.stopPropagation()">
           <h3>Upload Attachment</h3>
           
           <div class="filepond-wrapper">

@@ -1,13 +1,14 @@
 import { Component, inject, signal } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { ReactiveFormsModule, FormBuilder, Validators } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { AuthService } from '../../services/auth.service';
+import { RegisterRequest } from '../../models/auth.models';
 
 @Component({
   selector: 'app-register',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, RouterLink],
+  imports: [ReactiveFormsModule, RouterLink],
   templateUrl: './register.component.html',
   styleUrls: ['./register.component.scss']
 })
@@ -62,6 +63,6 @@ export class RegisterComponent {
       return;
     }
     
-    this.authService.register(this.registerForm.value as any).subscribe();
+    this.authService.register(this.registerForm.value as RegisterRequest).subscribe();
   }
 }

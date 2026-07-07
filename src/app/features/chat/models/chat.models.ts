@@ -8,6 +8,8 @@ export interface ISocketResponse<T = void> {
 export interface IUser {
   _id: string;
   username: string;
+  firstName?: string;
+  lastName?: string;
   email?: string;
   avatar?: string;
   status?: string;
@@ -22,8 +24,8 @@ export interface IMediaMeta {
 
 export interface IMessage {
   _id: string;
-  conversation?: string;
-  groupRef?: string;
+  conversation?: string | IConversation;
+  groupRef?: string | IConversation;
   type: string;
   sender: IUser;
   content: string;
@@ -79,4 +81,4 @@ export interface IGroupMember {
   addedBy?: string;
 }
 
-export interface IGroup extends IConversation {}
+export type IGroup = IConversation;

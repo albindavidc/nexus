@@ -17,13 +17,18 @@ import {
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MarkdownPipe } from '../../../../shared/pipes/markdown.pipe';
-import { ChatbotService } from '../../services/chatbot.service';
+import { ChatbotService, ChatBotMessage } from '../../services/chatbot.service';
 import { ChatService } from '../../services/chat.service';
 import { GroupService } from '../../services/group.service';
 import { AuthService } from '../../../auth/services/auth.service';
 import { SocketService } from '../../../../core/services/socket.service';
 import { environment } from '../../../../../environments/environment';
-import { IMessage, IUser } from '../../models/chat.models';
+import {
+  IMessage,
+  IUser,
+  IMediaMeta,
+  IConversation,
+} from '../../models/chat.models';
 import {
   debounceTime,
   distinctUntilChanged,
@@ -44,7 +49,7 @@ export interface UIChatMessage {
   text: string;
   type?: string;
   mediaUrl?: string;
-  mediaMeta?: any;
+  mediaMeta?: IMediaMeta;
   time: string;
   isMe: boolean;
   senderId?: string;
@@ -59,8 +64,18 @@ import FilePondPluginFileValidateSize from 'filepond-plugin-file-validate-size';
 registerPlugin(
   FilePondPluginImagePreview,
   FilePondPluginFileValidateType,
-  FilePondPluginFileValidateSize
+  FilePondPluginFileValidateSize,
 );
+
+export type ActiveChatInput = Partial<Omit<IConversation, 'type'>> & {
+  avatarColor?: string;
+  icon?: string;
+  isOnline?: boolean;
+  type?: string;
+  id?: string | number;
+  name?: string;
+  description?: string;
+};
 
 @Component({
   selector: 'app-group-chat',
@@ -70,8 +85,12 @@ registerPlugin(
   styleUrls: ['./group-chat.component.scss'],
 })
 export class GroupChatComponent implements OnChanges, OnDestroy, OnInit {
-  @Input() activeChat: any = null;
-  @Output() groupAction = new EventEmitter<unknown>();
+  @Input() activeChat: ActiveChatInput | null = null;
+  @Output() groupAction = new EventEmitter<{
+    action: string;
+    groupId?: string;
+    group?: IConversation;
+  }>();
   @ViewChild('messageTextarea')
   messageTextarea!: ElementRef<HTMLTextAreaElement>;
   @ViewChild('fileInput') fileInput!: ElementRef<HTMLInputElement>;
@@ -278,43 +297,48 @@ export class GroupChatComponent implements OnChanges, OnDestroy, OnInit {
   onSearchInput(event: Event) {
     const target = event.target as HTMLInputElement;
     this.currentSearchQuery = target.value;
-    
+
     if (this.originalScrollPosition === null) {
       const scrollEl = this.myScrollContainer?.nativeElement;
       if (scrollEl) {
         this.originalScrollPosition = scrollEl.scrollTop;
       }
     }
-    
+
     this.searchSubject.next(target.value);
   }
 
   nextSearchResult() {
     if (this.searchResults.length > 0) {
-      this.currentSearchIndex = (this.currentSearchIndex + 1) % this.searchResults.length;
+      this.currentSearchIndex =
+        (this.currentSearchIndex + 1) % this.searchResults.length;
       this.scrollToSearchResult();
     }
   }
 
   prevSearchResult() {
     if (this.searchResults.length > 0) {
-      this.currentSearchIndex = (this.currentSearchIndex - 1 + this.searchResults.length) % this.searchResults.length;
+      this.currentSearchIndex =
+        (this.currentSearchIndex - 1 + this.searchResults.length) %
+        this.searchResults.length;
       this.scrollToSearchResult();
     }
   }
 
   private scrollToMatch(index: number): void {
     if (!this.searchResults[index]) return;
-    const matchId = this.searchResults[index]._id || (this.searchResults[index] as IMessage & { id?: string }).id;
-    
+    const matchId =
+      this.searchResults[index]._id ||
+      (this.searchResults[index] as IMessage & { id?: string }).id;
+
     const targetElement = this.messageElements.find(
-      (el) => el.nativeElement.id === `msg-${matchId}`
+      (el) => el.nativeElement.id === `msg-${matchId}`,
     );
-    
+
     if (targetElement) {
       targetElement.nativeElement.scrollIntoView({
         behavior: 'smooth',
-        block: 'center'
+        block: 'center',
       });
     }
   }
@@ -324,15 +348,18 @@ export class GroupChatComponent implements OnChanges, OnDestroy, OnInit {
   }
 
   resetScrollPosition() {
-    if (this.originalScrollPosition !== null && this.myScrollContainer?.nativeElement) {
+    if (
+      this.originalScrollPosition !== null &&
+      this.myScrollContainer?.nativeElement
+    ) {
       this.myScrollContainer.nativeElement.scrollTo({
         top: this.originalScrollPosition,
-        behavior: 'smooth'
+        behavior: 'smooth',
       });
       this.originalScrollPosition = null;
     }
   }
-  
+
   // Participant search for Edit Group
   participantSearchQuery = '';
   participantSearchResults: IUser[] = [];
@@ -351,8 +378,6 @@ export class GroupChatComponent implements OnChanges, OnDestroy, OnInit {
     this.setupSearchStream();
     this.setupParticipantSearchStream();
   }
-  
-
 
   onParticipantSearchInput(event: Event) {
     const target = event.target as HTMLInputElement;
@@ -360,7 +385,7 @@ export class GroupChatComponent implements OnChanges, OnDestroy, OnInit {
   }
 
   addParticipant(user: IUser) {
-    if (!this.selectedNewParticipants.some(p => p._id === user._id)) {
+    if (!this.selectedNewParticipants.some((p) => p._id === user._id)) {
       this.selectedNewParticipants.push(user);
     }
     this.participantSearchQuery = '';
@@ -368,7 +393,9 @@ export class GroupChatComponent implements OnChanges, OnDestroy, OnInit {
   }
 
   removeParticipant(user: IUser) {
-    this.selectedNewParticipants = this.selectedNewParticipants.filter(p => p._id !== user._id);
+    this.selectedNewParticipants = this.selectedNewParticipants.filter(
+      (p) => p._id !== user._id,
+    );
   }
 
   private setupParticipantSearchStream(): void {
@@ -383,26 +410,30 @@ export class GroupChatComponent implements OnChanges, OnDestroy, OnInit {
             return [];
           }
           return this.chatService.searchUsers(query);
-        })
+        }),
       )
       .subscribe({
-        next: (res: any) => {
+        next: (res: { data?: { users?: IUser[] } }) => {
           if (res && res.data) {
             const myId = this.authService.currentUserId;
             // Exclude current user, existing members, and already selected new participants
-            const existingMemberIds = this.activeChat?.members?.map((m: any) => m.user._id || m.user.id) || [];
+            const existingMemberIds =
+              this.activeChat?.members?.map(
+                (m: { user: { _id?: string; id?: string } }) =>
+                  m.user._id || m.user.id,
+              ) || [];
             this.participantSearchResults = (res.data.users || []).filter(
-              (u: IUser) => 
-                u._id !== myId && 
+              (u: IUser) =>
+                u._id !== myId &&
                 !existingMemberIds.includes(u._id) &&
-                !this.selectedNewParticipants.some((p) => p._id === u._id)
+                !this.selectedNewParticipants.some((p) => p._id === u._id),
             );
           }
         },
         error: (err) => {
           console.error('Participant search failed', err);
           this.participantSearchResults = [];
-        }
+        },
       });
   }
 
@@ -430,15 +461,17 @@ export class GroupChatComponent implements OnChanges, OnDestroy, OnInit {
           return true;
         }),
         switchMap((query) =>
-          this.chatService.searchMessagesInConversation(
-            this.activeChat._id || this.activeChat.id,
-            query,
-          ).pipe(
-            catchError((err) => {
-              console.error('Failed to search messages', err);
-              return of({ data: [] });
-            })
-          )
+          this.chatService
+            .searchMessagesInConversation(
+              (this.activeChat?._id || this.activeChat?.id || '').toString(),
+              query,
+            )
+            .pipe(
+              catchError((err) => {
+                console.error('Failed to search messages', err);
+                return of({ data: [] });
+              }),
+            ),
         ),
       )
       .subscribe({
@@ -463,7 +496,7 @@ export class GroupChatComponent implements OnChanges, OnDestroy, OnInit {
   ngOnChanges(changes: SimpleChanges): void {
     if (changes['activeChat'] && this.activeChat) {
       this.resetSearch();
-      
+
       // Leave previous socket room if any
       if (this.currentSubscribedChatId) {
         this.socketService.leaveConversation(this.currentSubscribedChatId);
@@ -484,7 +517,7 @@ export class GroupChatComponent implements OnChanges, OnDestroy, OnInit {
       if (this.activeChat.type === 'bot') {
         this.fetchBotHistory();
       } else {
-        const chatId = this.activeChat._id || this.activeChat.id;
+        const chatId = ((this.activeChat._id || this.activeChat.id || '').toString()).toString();
         this.currentSubscribedChatId = chatId;
         this.fetchGroupHistory();
 
@@ -498,7 +531,9 @@ export class GroupChatComponent implements OnChanges, OnDestroy, OnInit {
           .subscribe({
             next: (m: IMessage) => {
               const msgConvId = (
-                (m.conversation as any)?._id ||
+                (typeof m.conversation === 'object'
+                  ? (m.conversation as IConversation)?._id
+                  : undefined) ||
                 m.conversation ||
                 ''
               ).toString();
@@ -576,7 +611,9 @@ export class GroupChatComponent implements OnChanges, OnDestroy, OnInit {
             .subscribe({
               next: (m: IMessage) => {
                 const msgGroupRef = (
-                  (m.groupRef as any)?._id ||
+                  (typeof m.groupRef === 'object'
+                    ? (m.groupRef as IConversation)?._id
+                    : undefined) ||
                   m.groupRef ||
                   ''
                 ).toString();
@@ -671,14 +708,16 @@ export class GroupChatComponent implements OnChanges, OnDestroy, OnInit {
 
     if (this.activeChat.type === 'group' && this.activeChat.members) {
       const member = this.activeChat.members.find(
-        (m: any) => m.user?._id === userId || m.user?.id === userId,
+        (m: { user?: { _id?: string; id?: string; status?: string } }) =>
+          m.user?._id === userId || m.user?.id === userId,
       );
       if (member && member.user) {
         member.user.status = status;
       }
     } else if (this.activeChat.participants) {
       const participant = this.activeChat.participants.find(
-        (p: any) => p._id === userId || p.id === userId,
+        (p: { _id?: string; id?: string; status?: string }) =>
+          p._id === userId || p.id === userId,
       );
       if (participant) {
         participant.status = status;
@@ -687,8 +726,8 @@ export class GroupChatComponent implements OnChanges, OnDestroy, OnInit {
   }
 
   fetchGroupHistory() {
-    this.messages = [];
-    const chatId = this.activeChat._id || this.activeChat.id;
+    if (!this.activeChat) return;
+    const chatId = ((this.activeChat._id || this.activeChat.id || '').toString()).toString();
     const isGroup = !this.activeChat.type || this.activeChat.type === 'group';
 
     const messageObs = isGroup
@@ -730,20 +769,22 @@ export class GroupChatComponent implements OnChanges, OnDestroy, OnInit {
     this.chatbotService.getHistory().subscribe({
       next: (res) => {
         const history = res.data?.history || [];
-        this.messages = history.map((m: any) => ({
-          id: m._id || Date.now(),
-          sender: m.role === 'user' ? 'You' : 'Nexus AI',
-          avatar: m.role === 'user' ? '👤' : '🤖',
-          avatarColor: m.role === 'user' ? '#1e1e1e' : '#ff5722',
-          text: m.message,
-          time: m.timestamp
-            ? new Date(m.timestamp).toLocaleTimeString([], {
+        this.messages = history.map(
+          (m: ChatBotMessage) => ({
+            id: m._id || Date.now(),
+            sender: m.role === 'user' ? 'You' : 'Nexus AI',
+            avatar: m.role === 'user' ? '👤' : '🤖',
+            avatarColor: m.role === 'user' ? '#1e1e1e' : '#ff5722',
+            text: m.content || m.message || '',
+            time: (m.timestamp || m.createdAt)
+            ? new Date((m.timestamp || m.createdAt) as string).toLocaleTimeString([], {
                 hour: '2-digit',
                 minute: '2-digit',
-              })
-            : 'Now',
-          isMe: m.role === 'user',
-        }));
+                })
+              : 'Now',
+            isMe: m.role === 'user',
+          }),
+        );
 
         if (this.messages.length === 0) {
           this.messages.push({
@@ -774,7 +815,7 @@ export class GroupChatComponent implements OnChanges, OnDestroy, OnInit {
   }
 
   sendMessage() {
-    if (!this.newMessage.trim()) return;
+    if (!this.newMessage.trim() || !this.activeChat) return;
 
     const userText = this.newMessage;
 
@@ -798,7 +839,10 @@ export class GroupChatComponent implements OnChanges, OnDestroy, OnInit {
     if (this.activeChat.type === 'bot') {
       this.isTyping = true;
       this.chatbotService
-        .chat({ conversationId: this.activeChat.id, message: userText })
+        .chat({
+          conversationId: (this.activeChat._id || this.activeChat.id || '').toString(),
+          message: userText,
+        })
         .subscribe({
           next: (res) => {
             this.isTyping = false;
@@ -825,7 +869,7 @@ export class GroupChatComponent implements OnChanges, OnDestroy, OnInit {
           },
         });
     } else {
-      const chatId = this.activeChat._id || this.activeChat.id;
+      const chatId = ((this.activeChat._id || this.activeChat.id || '').toString()).toString();
       const isGroup = !this.activeChat.type || this.activeChat.type === 'group';
 
       const sendObs = isGroup
@@ -833,7 +877,7 @@ export class GroupChatComponent implements OnChanges, OnDestroy, OnInit {
         : this.chatService.sendMessage(chatId, userText);
 
       sendObs.subscribe({
-        next: (res) => {
+        next: () => {
           // Successfully sent to backend
         },
         error: (err) => console.error('Failed to send message', err),
@@ -926,15 +970,23 @@ export class GroupChatComponent implements OnChanges, OnDestroy, OnInit {
   pondOptions = {
     class: 'nexus-filepond',
     multiple: false,
-    labelIdle: 'Drop files here or <span class="filepond--label-action">Browse</span>',
-    acceptedFileTypes: ['image/jpeg', 'image/png', 'image/webp', 'video/mp4', 'application/pdf', 'application/msword'],
+    labelIdle:
+      'Drop files here or <span class="filepond--label-action">Browse</span>',
+    acceptedFileTypes: [
+      'image/jpeg',
+      'image/png',
+      'image/webp',
+      'video/mp4',
+      'application/pdf',
+      'application/msword',
+    ],
     maxFileSize: '10MB',
     name: 'media',
     server: {
       url: `${environment.apiUrl}/chat/upload`,
       process: {
         withCredentials: true,
-        onload: (response: any) => {
+        onload: (response: string) => {
           try {
             const res = JSON.parse(response);
             if (res.data) {
@@ -944,9 +996,9 @@ export class GroupChatComponent implements OnChanges, OnDestroy, OnInit {
             console.error('Error parsing FilePond response', e);
           }
           return response;
-        }
-      }
-    }
+        },
+      },
+    },
   };
 
   triggerFileInput(): void {
@@ -957,10 +1009,11 @@ export class GroupChatComponent implements OnChanges, OnDestroy, OnInit {
     this.showUploadModal = false;
   }
 
-  handleFilePondSuccess(data: any) {
+  handleFilePondSuccess(data: { mediaUrl: string; mediaMeta: IMediaMeta }) {
     const { mediaUrl, mediaMeta } = data;
     const msgType = mediaMeta.mimeType.startsWith('image/') ? 'image' : 'file';
-    const chatId = this.activeChat._id || this.activeChat.id;
+    if (!this.activeChat) return;
+    const chatId = ((this.activeChat._id || this.activeChat.id || '').toString()).toString();
     const caption = this.newMessage.trim() || mediaMeta.filename;
 
     // Add optimistic message
@@ -973,7 +1026,10 @@ export class GroupChatComponent implements OnChanges, OnDestroy, OnInit {
       type: msgType,
       mediaUrl,
       mediaMeta,
-      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      time: new Date().toLocaleTimeString([], {
+        hour: '2-digit',
+        minute: '2-digit',
+      }),
       isMe: true,
     });
     this.scrollToBottom();
@@ -1005,7 +1061,7 @@ export class GroupChatComponent implements OnChanges, OnDestroy, OnInit {
     } else {
       this.closeUploadModal();
     }
-    
+
     this.newMessage = '';
   }
 
@@ -1044,10 +1100,11 @@ export class GroupChatComponent implements OnChanges, OnDestroy, OnInit {
         this.scrollToBottom();
 
         // Send via socket
+        if (!this.activeChat) return;
         if (this.activeChat.type === 'bot') {
           // Bot doesn't support media, skip
         } else {
-          const chatId = this.activeChat._id || this.activeChat.id;
+          const chatId = ((this.activeChat._id || this.activeChat.id || '').toString()).toString();
           const isGroup =
             !this.activeChat.type || this.activeChat.type === 'group';
 
@@ -1115,7 +1172,7 @@ export class GroupChatComponent implements OnChanges, OnDestroy, OnInit {
   getOnlineCount(): number {
     if (!this.activeChat || !this.activeChat.members) return 0;
     const count = this.activeChat.members.filter(
-      (m: any) => m.user?.status === 'online',
+      (m: { user?: { status?: string } }) => m.user?.status === 'online',
     ).length;
     return count;
   }
@@ -1133,7 +1190,8 @@ export class GroupChatComponent implements OnChanges, OnDestroy, OnInit {
     if (!this.activeChat.participants) return false;
 
     const partner = this.activeChat.participants.find(
-      (p: any) => (p._id || p.id) !== myId,
+      (p: { _id?: string; id?: string; status?: string }) =>
+        (p._id || p.id) !== myId,
     );
 
     return partner?.status === 'online';
@@ -1147,11 +1205,13 @@ export class GroupChatComponent implements OnChanges, OnDestroy, OnInit {
 
     // Check members array — m.user may be a populated object OR raw string
     if (this.activeChat.members) {
-      const member = this.activeChat.members.find((m: any) => {
-        const mId = this.extractSenderId(m.user);
-        return mId === myId;
-      });
-      if (member?.role === 'admin' || member?.role === 'owner') return true;
+      const member = this.activeChat.members.find(
+        (m: { user?: unknown; role?: string }) => {
+          const mId = this.extractSenderId(m.user);
+          return mId === myId;
+        },
+      );
+      if (member?.role === 'ADMIN' || member?.role === 'OWNER') return true;
     }
 
     // Fallback: check creator field
@@ -1166,7 +1226,8 @@ export class GroupChatComponent implements OnChanges, OnDestroy, OnInit {
       description: this.activeChat.description || '',
       theme: this.activeChat.theme || '#ff6600',
     };
-    this.existingParticipants = this.activeChat.members?.map((m: any) => m.user) || [];
+    this.existingParticipants =
+      this.activeChat.members?.map((m: { user: IUser }) => m.user) || [];
     this.selectedNewParticipants = [];
     this.participantSearchQuery = '';
     this.participantSearchResults = [];
@@ -1175,19 +1236,31 @@ export class GroupChatComponent implements OnChanges, OnDestroy, OnInit {
 
   removeExistingParticipant(user: IUser) {
     if (!this.activeChat || this.activeChat.type === 'bot') return;
-    const chatId = this.activeChat._id || this.activeChat.id;
-    
-    if (confirm(`Are you sure you want to remove ${user.username} from the group?`)) {
+    const chatId = ((this.activeChat._id || this.activeChat.id || '').toString()).toString();
+
+    if (
+      confirm(
+        `Are you sure you want to remove ${user.username} from the group?`,
+      )
+    ) {
       this.groupService.removeMember(chatId, user._id).subscribe({
         next: () => {
-          this.existingParticipants = this.existingParticipants.filter(p => p._id !== user._id);
+          this.existingParticipants = this.existingParticipants.filter(
+            (p) => p._id !== user._id,
+          );
+          if (!this.activeChat) return;
           if (this.activeChat.members) {
             this.activeChat.members = this.activeChat.members.filter(
-              (m: any) => (m.user?._id || m.user?.id || m.user) !== user._id
+              (m: { user?: { _id?: string; id?: string } | string }) => {
+                const u = m.user;
+                if (!u) return true;
+                if (typeof u === 'string') return u !== user._id;
+                return (u._id || u.id) !== user._id;
+              },
             );
           }
         },
-        error: (err) => console.error('Failed to remove member', err)
+        error: (err) => console.error('Failed to remove member', err),
       });
     }
   }
@@ -1198,17 +1271,17 @@ export class GroupChatComponent implements OnChanges, OnDestroy, OnInit {
 
   updateGroupSubmit() {
     if (!this.activeChat || this.activeChat.type === 'bot') return;
-    const chatId = this.activeChat._id || this.activeChat.id;
+    const chatId = ((this.activeChat._id || this.activeChat.id || '').toString()).toString();
 
     // Handle adding new members
     if (this.selectedNewParticipants.length > 0) {
-      const userIds = this.selectedNewParticipants.map(p => p._id);
+      const userIds = this.selectedNewParticipants.map((p) => p._id);
       this.groupService.addMembers(chatId, userIds).subscribe({
         next: () => {
           this.selectedNewParticipants = [];
           // Note: the backend will emit group:add_members, which can be handled via socket
         },
-        error: (err) => console.error('Failed to add members', err)
+        error: (err) => console.error('Failed to add members', err),
       });
     }
 
@@ -1239,7 +1312,7 @@ export class GroupChatComponent implements OnChanges, OnDestroy, OnInit {
 
   deleteGroup() {
     if (!this.activeChat || this.activeChat.type === 'bot') return;
-    const chatId = this.activeChat._id || this.activeChat.id;
+    const chatId = ((this.activeChat._id || this.activeChat.id || '').toString()).toString();
 
     if (
       confirm(
@@ -1261,7 +1334,7 @@ export class GroupChatComponent implements OnChanges, OnDestroy, OnInit {
 
   leaveGroup() {
     if (!this.activeChat || this.activeChat.type === 'bot') return;
-    const chatId = this.activeChat._id || this.activeChat.id;
+    const chatId = ((this.activeChat._id || this.activeChat.id || '').toString()).toString();
 
     if (confirm(`Are you sure you want to leave "${this.activeChat.name}"?`)) {
       this.groupService.leaveGroup(chatId).subscribe({
@@ -1315,7 +1388,7 @@ export class GroupChatComponent implements OnChanges, OnDestroy, OnInit {
         if (
           confirm('Are you sure you want to clear this conversation history?')
         ) {
-          const chatId = this.activeChat._id || this.activeChat.id;
+          const chatId = ((this.activeChat._id || this.activeChat.id || '').toString()).toString();
           this.chatService.clearConversation(chatId).subscribe({
             next: () => {
               this.messages = [];
@@ -1347,8 +1420,8 @@ export class GroupChatComponent implements OnChanges, OnDestroy, OnInit {
   private extractSenderId(sender: unknown): string {
     if (!sender) return '';
     if (typeof sender === 'string') return sender.trim();
-    const s = sender as any;
-    return (s._id ?? s.id ?? '').toString().trim();
+    const s = sender as IUser;
+    return (s._id ?? '').toString().trim();
   }
 
   ngOnDestroy(): void {

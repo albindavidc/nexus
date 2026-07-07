@@ -1,5 +1,5 @@
 import { Component, inject, signal, OnInit, ViewChildren, QueryList, ElementRef, AfterViewInit } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { FormsModule } from '@angular/forms';
 import { RouterLink, Router } from '@angular/router';
 import { AuthService } from '../../services/auth.service';
@@ -7,7 +7,7 @@ import { AuthService } from '../../services/auth.service';
 @Component({
   selector: 'app-verify-otp',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink],
+  imports: [FormsModule, RouterLink],
   templateUrl: './verify-otp.component.html',
   styleUrls: ['./verify-otp.component.scss']
 })
@@ -21,7 +21,7 @@ export class VerifyOtpComponent implements OnInit, AfterViewInit {
   email = '';
   resendCooldown = signal<number>(0);
   successMessage = signal<string | null>(null);
-  private cooldownInterval: any = null;
+  private cooldownInterval: ReturnType<typeof setInterval> | null = null;
 
   ngOnInit(): void {
     this.authService.clearError();
@@ -130,13 +130,13 @@ export class VerifyOtpComponent implements OnInit, AfterViewInit {
 
   private startCooldown(): void {
     this.resendCooldown.set(60);
-    if (this.cooldownInterval) clearInterval(this.cooldownInterval);
+    if (this.cooldownInterval) clearInterval(this.cooldownInterval ?? undefined);
 
     this.cooldownInterval = setInterval(() => {
       const current = this.resendCooldown();
       if (current <= 1) {
         this.resendCooldown.set(0);
-        clearInterval(this.cooldownInterval);
+        clearInterval(this.cooldownInterval ?? undefined);
         this.cooldownInterval = null;
       } else {
         this.resendCooldown.set(current - 1);
